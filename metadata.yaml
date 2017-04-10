@@ -1,0 +1,28 @@
+name: glance-simplestreams-sync
+summary: Sync data from simplestreams into glance.
+maintainer: OpenStack Charmers <openstack-dev@lists.openstack.org>
+description: |
+  Automatically keep your glance mirror in sync with any (multiple) source(s)
+  of simplestreams data.
+tags:
+  - misc
+  - openstack
+series:
+  - trusty
+  - xenial
+  - yakkety
+subordinate: false
+provides:
+  simplestreams-image-service:
+    interface: glance-simplestreams-sync
+  image-modifier:
+    scope: container
+    interface: script-provider
+  nrpe-external-master:
+    interface: nrpe-external-master
+    scope: container
+requires:
+  identity-service:
+    interface: keystone
+  amqp:
+    interface: rabbitmq

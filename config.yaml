@@ -1,0 +1,111 @@
+options:
+  mirror_list:
+    type: string
+    default: "[{url: 'http://cloud-images.ubuntu.com/releases/',
+                name_prefix: 'ubuntu:released',
+                path: 'streams/v1/index.sjson', max: 1,
+                item_filters: ['release~(trusty|xenial)', 'arch~(x86_64|amd64)', 'ftype~(disk1.img|disk.img)']}]"
+    description: >
+      YAML-formatted list of simplestreams mirrors and their configuration
+      properties. Defaults to downloading the released images from
+      cloud-images.ubuntu.com.
+  run:
+    type: boolean
+    default: True
+    description: "Should the sync be running or not?"
+  use_swift:
+    type: boolean
+    default: True
+    description: "Should the charm set up the product-streams endpoint with swift's URLs?"
+  frequency:
+    type: string
+    default: "daily"
+    description: "cron job frequency - one of ['hourly', 'daily', 'weekly']"
+  region:
+    type: string
+    default: "RegionOne"
+    description: "Openstack region to operate in."
+  cloud_name:
+    type: string
+    default: "glance-simplestreams-sync-openstack"
+    description: "Cloud name to be used in simplestreams index file"
+  user_agent:
+    type: string
+    default: "glance-simplestreams-sync"
+    description: >
+      User agent to use when requesting images from image servers listed in
+      the mirror_list.
+  name_prefix:
+    type: string
+    default: "auto-sync/"
+    description: "This is prefixed to the object name when uploading to glance."
+  content_id_template:
+    type: string
+    default: "auto.sync"
+    description: >
+      A Python-style .format() template to use when generating
+      content_id properties for images uploaded to glance.
+
+      The content_id is considered when matching images between the
+      source and destination to decide which images to mirror.  By
+      varying this value you can mirror disjoint sets of images from
+      the same source into a single glance, either by using multiple
+      deployments of this charm, or by using a tool such as
+      sstream-mirror-glance, and they will not interfere with each
+      other.
+
+      Here is a more interesting example value:
+
+          com.example.customstack.{region}:ubuntu:celery-worker
+
+      Currently the only available substitution is "region".  Any
+      other attempted substitutions will break the sync script.
+  rabbit-user:
+    default: glance-simplestreams-sync
+    type: string
+    description: Username to request access on rabbitmq-server.
+  rabbit-vhost:
+    default: openstack
+    type: string
+    description: RabbitMQ virtual host to request access on rabbitmq-server.
+  nagios_context:
+    default: "juju"
+    type: string
+    description: |
+      Used by the nrpe-external-master subordinate charm.
+      A string that will be prepended to instance name to set the host name
+      in nagios. So for instance the hostname would be something like:
+          juju-myservice-0
+      If you're running multiple environments with the same services in them
+      this allows you to differentiate between them.
+  nagios_servicegroups:
+    default: ""
+    type: string
+    description: |
+      A comma-separated list of nagios servicegroups.
+      If left empty, the nagios_context will be used as the servicegroup
+  source:
+    type: string
+    default:
+    description: |
+      Optional configuration to support use of additional sources such as:
+
+        - ppa:myteam/ppa
+        - cloud:trusty-proposed/kilo
+        - http://my.archive.com/ubuntu main
+
+        The last option should be used in conjunction with the key configuration
+        option.
+  key:
+    type: string
+    default:
+    description: |
+      Key ID to import to the apt keyring to support use with arbitary source
+      configuration from outside of Launchpad archives or PPA's.
+  hypervisor_mapping:
+    type: boolean
+    default: false
+    description: |
+      Enable configuration of hypervisor-type on synced images.
+      .
+      This is useful in multi-hypervisor clouds supporting both LXD and KVM.

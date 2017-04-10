@@ -1,0 +1,7 @@
+*pyc
+.bzr
+bin
+.coverage
+.venv
+.testrepository/
+.tox/

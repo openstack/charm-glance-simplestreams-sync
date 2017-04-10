@@ -1,0 +1,12 @@
+branch: lp:charm-helpers
+destination: charmhelpers
+include:
+    - core
+    - fetch
+    - payload
+    - contrib.openstack|inc=*
+    - contrib.charmsupport
+    - contrib.network.ip
+    - contrib.python.packages
+    - contrib.hahelpers
+    - contrib.storage
