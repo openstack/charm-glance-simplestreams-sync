@@ -1,18 +1,16 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 """Compatibility with the nrpe-external-master charm"""
 # Copyright 2012 Canonical Ltd.
@@ -40,6 +38,7 @@ from charmhelpers.core.hookenv import (
 )
 
 from charmhelpers.core.host import service
+from charmhelpers.core import host
 
 # This module adds compatibility with the nrpe-external-master and plain nrpe
 # subordinate charms. To use it in your charm:
@@ -110,6 +109,13 @@ from charmhelpers.core.host import service
 #    def local_monitors_relation_changed():
 #        update_nrpe_config()
 #
+# 4.a If your charm is a subordinate charm set primary=False
+#
+#    from charmsupport.nrpe import NRPE
+#    (...)
+#    def update_nrpe_config():
+#        nrpe_compat = NRPE(primary=False)
+#
 # 5. ln -s hooks.py nrpe-external-master-relation-changed
 #    ln -s hooks.py local-monitors-relation-changed
 
@@ -148,6 +154,13 @@ define service {{
         self.description = description
         self.check_cmd = self._locate_cmd(check_cmd)
 
+    def _get_check_filename(self):
+        return os.path.join(NRPE.nrpe_confdir, '{}.cfg'.format(self.command))
+
+    def _get_service_filename(self, hostname):
+        return os.path.join(NRPE.nagios_exportdir,
+                            'service__{}_{}.cfg'.format(hostname, self.command))
+
     def _locate_cmd(self, check_cmd):
         search_path = (
             '/usr/lib/nagios/plugins',
@@ -163,9 +176,21 @@ define service {{
         log('Check command not found: {}'.format(parts[0]))
         return ''
 
+    def _remove_service_files(self):
+        if not os.path.exists(NRPE.nagios_exportdir):
+            return
+        for f in os.listdir(NRPE.nagios_exportdir):
+            if f.endswith('_{}.cfg'.format(self.command)):
+                os.remove(os.path.join(NRPE.nagios_exportdir, f))
+
+    def remove(self, hostname):
+        nrpe_check_file = self._get_check_filename()
+        if os.path.exists(nrpe_check_file):
+            os.remove(nrpe_check_file)
+        self._remove_service_files()
+
     def write(self, nagios_context, hostname, nagios_servicegroups):
-        nrpe_check_file = '/etc/nagios/nrpe.d/{}.cfg'.format(
-            self.command)
+        nrpe_check_file = self._get_check_filename()
         with open(nrpe_check_file, 'w') as nrpe_check_config:
             nrpe_check_config.write("# check {}\n".format(self.shortname))
             nrpe_check_config.write("command[{}]={}\n".format(
@@ -180,9 +205,7 @@ define service {{
 
     def write_service_config(self, nagios_context, hostname,
                              nagios_servicegroups):
-        for f in os.listdir(NRPE.nagios_exportdir):
-            if re.search('.*{}.cfg'.format(self.command), f):
-                os.remove(os.path.join(NRPE.nagios_exportdir, f))
+        self._remove_service_files()
 
         templ_vars = {
             'nagios_hostname': hostname,
@@ -192,8 +215,7 @@ define service {{
             'command': self.command,
         }
         nrpe_service_text = Check.service_template.format(**templ_vars)
-        nrpe_service_file = '{}/service__{}_{}.cfg'.format(
-            NRPE.nagios_exportdir, hostname, self.command)
+        nrpe_service_file = self._get_service_filename(hostname)
         with open(nrpe_service_file, 'w') as nrpe_service_config:
             nrpe_service_config.write(str(nrpe_service_text))
 
@@ -205,10 +227,12 @@ class NRPE(object):
     nagios_logdir = '/var/log/nagios'
     nagios_exportdir = '/var/lib/nagios/export'
     nrpe_confdir = '/etc/nagios/nrpe.d'
+    homedir = '/var/lib/nagios'  # home dir provided by nagios-nrpe-server
 
-    def __init__(self, hostname=None):
+    def __init__(self, hostname=None, primary=True):
         super(NRPE, self).__init__()
         self.config = config()
+        self.primary = primary
         self.nagios_context = self.config['nagios_context']
         if 'nagios_servicegroups' in self.config and self.config['nagios_servicegroups']:
             self.nagios_servicegroups = self.config['nagios_servicegroups']
@@ -218,11 +242,37 @@ class NRPE(object):
         if hostname:
             self.hostname = hostname
         else:
-            self.hostname = "{}-{}".format(self.nagios_context, self.unit_name)
+            nagios_hostname = get_nagios_hostname()
+            if nagios_hostname:
+                self.hostname = nagios_hostname
+            else:
+                self.hostname = "{}-{}".format(self.nagios_context, self.unit_name)
         self.checks = []
+        # Iff in an nrpe-external-master relation hook, set primary status
+        relation = relation_ids('nrpe-external-master')
+        if relation:
+            log("Setting charm primary status {}".format(primary))
+            for rid in relation_ids('nrpe-external-master'):
+                relation_set(relation_id=rid, relation_settings={'primary': self.primary})
 
     def add_check(self, *args, **kwargs):
         self.checks.append(Check(*args, **kwargs))
+
+    def remove_check(self, *args, **kwargs):
+        if kwargs.get('shortname') is None:
+            raise ValueError('shortname of check must be specified')
+
+        # Use sensible defaults if they're not specified - these are not
+        # actually used during removal, but they're required for constructing
+        # the Check object; check_disk is chosen because it's part of the
+        # nagios-plugins-basic package.
+        if kwargs.get('check_cmd') is None:
+            kwargs['check_cmd'] = 'check_disk'
+        if kwargs.get('description') is None:
+            kwargs['description'] = ''
+
+        check = Check(*args, **kwargs)
+        check.remove(self.hostname)
 
     def write(self):
         try:
@@ -260,7 +310,7 @@ def get_nagios_hostcontext(relation_name='nrpe-external-master'):
     :param str relation_name: Name of relation nrpe sub joined to
     """
     for rel in relations_of_type(relation_name):
-        if 'nagios_hostname' in rel:
+        if 'nagios_host_context' in rel:
             return rel['nagios_host_context']
 
 
@@ -289,18 +339,30 @@ def get_nagios_unit_name(relation_name='nrpe-external-master'):
     return unit
 
 
-def add_init_service_checks(nrpe, services, unit_name):
+def add_init_service_checks(nrpe, services, unit_name, immediate_check=True):
     """
     Add checks for each service in list
 
     :param NRPE nrpe: NRPE object to add check to
     :param list services: List of services to check
     :param str unit_name: Unit name to use in check description
+    :param bool immediate_check: For sysv init, run the service check immediately
     """
     for svc in services:
+        # Don't add a check for these services from neutron-gateway
+        if svc in ['ext-port', 'os-charm-phy-nic-mtu']:
+            next
+
         upstart_init = '/etc/init/%s.conf' % svc
         sysv_init = '/etc/init.d/%s' % svc
-        if os.path.exists(upstart_init):
+
+        if host.init_is_systemd():
+            nrpe.add_check(
+                shortname=svc,
+                description='process check {%s}' % unit_name,
+                check_cmd='check_systemd.py %s' % svc
+            )
+        elif os.path.exists(upstart_init):
             nrpe.add_check(
                 shortname=svc,
                 description='process check {%s}' % unit_name,
@@ -308,21 +370,31 @@ def add_init_service_checks(nrpe, services, unit_name):
             )
         elif os.path.exists(sysv_init):
             cronpath = '/etc/cron.d/nagios-service-check-%s' % svc
-            cron_file = ('*/5 * * * * root '
-                         '/usr/local/lib/nagios/plugins/check_exit_status.pl '
-                         '-s /etc/init.d/%s status > '
-                         '/var/lib/nagios/service-check-%s.txt\n' % (svc,
-                                                                     svc)
-                         )
+            checkpath = '%s/service-check-%s.txt' % (nrpe.homedir, svc)
+            croncmd = (
+                '/usr/local/lib/nagios/plugins/check_exit_status.pl '
+                '-e -s /etc/init.d/%s status' % svc
+            )
+            cron_file = '*/5 * * * * root %s > %s\n' % (croncmd, checkpath)
             f = open(cronpath, 'w')
             f.write(cron_file)
             f.close()
             nrpe.add_check(
                 shortname=svc,
-                description='process check {%s}' % unit_name,
-                check_cmd='check_status_file.py -f '
-                          '/var/lib/nagios/service-check-%s.txt' % svc,
+                description='service check {%s}' % unit_name,
+                check_cmd='check_status_file.py -f %s' % checkpath,
             )
+            # if /var/lib/nagios doesn't exist open(checkpath, 'w') will fail
+            # (LP: #1670223).
+            if immediate_check and os.path.isdir(nrpe.homedir):
+                f = open(checkpath, 'w')
+                subprocess.call(
+                    croncmd.split(),
+                    stdout=f,
+                    stderr=subprocess.STDOUT
+                )
+                f.close()
+                os.chmod(checkpath, 0o644)
 
 
 def copy_nrpe_checks():

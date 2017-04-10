@@ -3,19 +3,17 @@
 
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import six
 import re
@@ -70,3 +68,56 @@ def bytes_from_string(value):
         msg = "Unable to interpret string value '%s' as bytes" % (value)
         raise ValueError(msg)
     return int(matches.group(1)) * (1024 ** BYTE_POWER[matches.group(2)])
+
+
+class BasicStringComparator(object):
+    """Provides a class that will compare strings from an iterator type object.
+    Used to provide > and < comparisons on strings that may not necessarily be
+    alphanumerically ordered.  e.g. OpenStack or Ubuntu releases AFTER the
+    z-wrap.
+    """
+
+    _list = None
+
+    def __init__(self, item):
+        if self._list is None:
+            raise Exception("Must define the _list in the class definition!")
+        try:
+            self.index = self._list.index(item)
+        except Exception:
+            raise KeyError("Item '{}' is not in list '{}'"
+                           .format(item, self._list))
+
+    def __eq__(self, other):
+        assert isinstance(other, str) or isinstance(other, self.__class__)
+        return self.index == self._list.index(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __lt__(self, other):
+        assert isinstance(other, str) or isinstance(other, self.__class__)
+        return self.index < self._list.index(other)
+
+    def __ge__(self, other):
+        return not self.__lt__(other)
+
+    def __gt__(self, other):
+        assert isinstance(other, str) or isinstance(other, self.__class__)
+        return self.index > self._list.index(other)
+
+    def __le__(self, other):
+        return not self.__gt__(other)
+
+    def __str__(self):
+        """Always give back the item at the index so it can be used in
+        comparisons like:
+
+        s_mitaka = CompareOpenStack('mitaka')
+        s_newton = CompareOpenstack('newton')
+
+        assert s_newton > s_mitaka
+
+        @returns: <string>
+        """
+        return self._list[self.index]

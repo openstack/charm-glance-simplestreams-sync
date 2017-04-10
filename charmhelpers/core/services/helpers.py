@@ -1,18 +1,16 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
 import yaml
@@ -243,33 +241,40 @@ class TemplateCallback(ManagerCallback):
     :param str source: The template source file, relative to
         `$CHARM_DIR/templates`
 
-    :param str target: The target to write the rendered template to
+    :param str target: The target to write the rendered template to (or None)
     :param str owner: The owner of the rendered file
     :param str group: The group of the rendered file
     :param int perms: The permissions of the rendered file
     :param partial on_change_action: functools partial to be executed when
                                      rendered file changes
+    :param jinja2 loader template_loader: A jinja2 template loader
+
+    :return str: The rendered template
     """
     def __init__(self, source, target,
                  owner='root', group='root', perms=0o444,
-                 on_change_action=None):
+                 on_change_action=None, template_loader=None):
         self.source = source
         self.target = target
         self.owner = owner
         self.group = group
         self.perms = perms
         self.on_change_action = on_change_action
+        self.template_loader = template_loader
 
     def __call__(self, manager, service_name, event_name):
         pre_checksum = ''
         if self.on_change_action and os.path.isfile(self.target):
             pre_checksum = host.file_hash(self.target)
         service = manager.get_service(service_name)
-        context = {}
+        context = {'ctx': {}}
         for ctx in service.get('required_data', []):
             context.update(ctx)
-        templating.render(self.source, self.target, context,
-                          self.owner, self.group, self.perms)
+            context['ctx'].update(ctx)
+
+        result = templating.render(self.source, self.target, context,
+                                   self.owner, self.group, self.perms,
+                                   template_loader=self.template_loader)
         if self.on_change_action:
             if pre_checksum == host.file_hash(self.target):
                 hookenv.log(
@@ -277,6 +282,8 @@ class TemplateCallback(ManagerCallback):
                     hookenv.DEBUG)
             else:
                 self.on_change_action()
+
+        return result
 
 
 # Convenience aliases for templates

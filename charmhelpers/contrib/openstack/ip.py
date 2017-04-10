@@ -1,52 +1,62 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from charmhelpers.core.hookenv import (
     config,
     unit_get,
     service_name,
+    network_get_primary_address,
 )
 from charmhelpers.contrib.network.ip import (
     get_address_in_network,
     is_address_in_network,
     is_ipv6,
     get_ipv6_addr,
+    resolve_network_cidr,
 )
 from charmhelpers.contrib.hahelpers.cluster import is_clustered
 
 PUBLIC = 'public'
 INTERNAL = 'int'
 ADMIN = 'admin'
+ACCESS = 'access'
 
 ADDRESS_MAP = {
     PUBLIC: {
+        'binding': 'public',
         'config': 'os-public-network',
         'fallback': 'public-address',
         'override': 'os-public-hostname',
     },
     INTERNAL: {
+        'binding': 'internal',
         'config': 'os-internal-network',
         'fallback': 'private-address',
         'override': 'os-internal-hostname',
     },
     ADMIN: {
+        'binding': 'admin',
         'config': 'os-admin-network',
         'fallback': 'private-address',
         'override': 'os-admin-hostname',
-    }
+    },
+    ACCESS: {
+        'binding': 'access',
+        'config': 'access-network',
+        'fallback': 'private-address',
+        'override': 'os-access-hostname',
+    },
 }
 
 
@@ -103,20 +113,23 @@ def _get_address_override(endpoint_type=PUBLIC):
         return addr_override.format(service_name=service_name())
 
 
-def resolve_address(endpoint_type=PUBLIC):
+def resolve_address(endpoint_type=PUBLIC, override=True):
     """Return unit address depending on net config.
 
     If unit is clustered with vip(s) and has net splits defined, return vip on
     correct network. If clustered with no nets defined, return primary vip.
 
     If not clustered, return unit address ensuring address is on configured net
-    split if one is configured.
+    split if one is configured, or a Juju 2.0 extra-binding has been used.
 
     :param endpoint_type: Network endpoing type
+    :param override: Accept hostname overrides or not
     """
-    resolved_address = _get_address_override(endpoint_type)
-    if resolved_address:
-        return resolved_address
+    resolved_address = None
+    if override:
+        resolved_address = _get_address_override(endpoint_type)
+        if resolved_address:
+            return resolved_address
 
     vips = config('vip')
     if vips:
@@ -125,23 +138,45 @@ def resolve_address(endpoint_type=PUBLIC):
     net_type = ADDRESS_MAP[endpoint_type]['config']
     net_addr = config(net_type)
     net_fallback = ADDRESS_MAP[endpoint_type]['fallback']
+    binding = ADDRESS_MAP[endpoint_type]['binding']
     clustered = is_clustered()
-    if clustered:
-        if not net_addr:
-            # If no net-splits defined, we expect a single vip
-            resolved_address = vips[0]
-        else:
+
+    if clustered and vips:
+        if net_addr:
             for vip in vips:
                 if is_address_in_network(net_addr, vip):
                     resolved_address = vip
                     break
+        else:
+            # NOTE: endeavour to check vips against network space
+            #       bindings
+            try:
+                bound_cidr = resolve_network_cidr(
+                    network_get_primary_address(binding)
+                )
+                for vip in vips:
+                    if is_address_in_network(bound_cidr, vip):
+                        resolved_address = vip
+                        break
+            except NotImplementedError:
+                # If no net-splits configured and no support for extra
+                # bindings/network spaces so we expect a single vip
+                resolved_address = vips[0]
     else:
         if config('prefer-ipv6'):
             fallback_addr = get_ipv6_addr(exc_list=vips)[0]
         else:
             fallback_addr = unit_get(net_fallback)
 
-        resolved_address = get_address_in_network(net_addr, fallback_addr)
+        if net_addr:
+            resolved_address = get_address_in_network(net_addr, fallback_addr)
+        else:
+            # NOTE: only try to use extra bindings if legacy network
+            #       configuration is not in use
+            try:
+                resolved_address = network_get_primary_address(binding)
+            except NotImplementedError:
+                resolved_address = fallback_addr
 
     if resolved_address is None:
         raise ValueError("Unable to resolve a suitable IP address based on "

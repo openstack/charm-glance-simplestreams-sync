@@ -41,6 +41,7 @@ class TestConfigChanged(CharmTestCase):
         shutil.rmtree(self.tmpcrond)
         shutil.rmtree(self.sharedir)
 
+    @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.symlink')
     @mock.patch('hooks.charmhelpers.core.hookenv.config')
     @mock.patch('hooks.charmhelpers.core.hookenv.relations_of_type')
@@ -49,7 +50,8 @@ class TestConfigChanged(CharmTestCase):
     @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.config')
     @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.local_unit')
     def test_default_config(self, local_unit, nrpe_config, nag_host,
-                            relations_of_type, config, symlink):
+                            relations_of_type, config, symlink,
+                            update_nrpe_config):
         local_unit.return_value = 'juju/0'
         nag_host.return_value = "nagios_hostname"
         nrpe_config.return_value = self.test_config
@@ -74,7 +76,9 @@ class TestConfigChanged(CharmTestCase):
 
         mirror_list = yaml.safe_load(self.test_config['mirror_list'])
         self.assertEqual(mirrors['mirror_list'], mirror_list)
+        update_nrpe_config.assert_called()
 
+    @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.path.exists')
     @mock.patch('os.remove')
     @mock.patch('glob.glob')
@@ -85,7 +89,8 @@ class TestConfigChanged(CharmTestCase):
     @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.config')
     @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.local_unit')
     def test_uninstall_cron(self, local_unit, nrpe_config, nag_host,
-                            relations_of_type, config, glob, remove, exists):
+                            relations_of_type, config, glob, remove, exists,
+                            update_nrpe_config):
         local_unit.return_value = 'juju/0'
         nag_host.return_value = "nagios_hostname"
         nrpe_config.return_value = self.test_config
@@ -101,3 +106,4 @@ class TestConfigChanged(CharmTestCase):
         remove.assert_any_call(os.path.join('/etc/cron.daily/',
                                             hooks.CRON_JOB_FILENAME))
         remove.assert_any_call(hooks.CRON_POLL_FILEPATH)
+        update_nrpe_config.assert_called()

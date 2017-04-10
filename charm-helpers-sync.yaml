@@ -3,6 +3,7 @@ destination: charmhelpers
 include:
     - core
     - fetch
+    - osplatform
     - payload
     - contrib.openstack|inc=*
     - contrib.charmsupport

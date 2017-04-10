@@ -1,18 +1,16 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
 
@@ -30,7 +28,10 @@ try:
     from jinja2 import FileSystemLoader, ChoiceLoader, Environment, exceptions
 except ImportError:
     apt_update(fatal=True)
-    apt_install('python-jinja2', fatal=True)
+    if six.PY2:
+        apt_install('python-jinja2', fatal=True)
+    else:
+        apt_install('python3-jinja2', fatal=True)
     from jinja2 import FileSystemLoader, ChoiceLoader, Environment, exceptions
 
 
@@ -209,7 +210,10 @@ class OSConfigRenderer(object):
             # if this code is running, the object is created pre-install hook.
             # jinja2 shouldn't get touched until the module is reloaded on next
             # hook execution, with proper jinja2 bits successfully imported.
-            apt_install('python-jinja2')
+            if six.PY2:
+                apt_install('python-jinja2')
+            else:
+                apt_install('python3-jinja2')
 
     def register(self, config_file, contexts):
         """

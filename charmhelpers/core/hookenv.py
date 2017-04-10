@@ -1,18 +1,16 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 "Interactions with the Juju environment"
 # Copyright 2013 Canonical Ltd.
@@ -334,6 +332,8 @@ def config(scope=None):
     config_cmd_line = ['config-get']
     if scope is not None:
         config_cmd_line.append(scope)
+    else:
+        config_cmd_line.append('--all')
     config_cmd_line.append('--format=json')
     try:
         config_data = json.loads(
@@ -491,6 +491,19 @@ def relation_types():
 
 
 @cached
+def peer_relation_id():
+    '''Get the peers relation id if a peers relation has been joined, else None.'''
+    md = metadata()
+    section = md.get('peers')
+    if section:
+        for key in section:
+            relids = relation_ids(key)
+            if relids:
+                return relids[0]
+    return None
+
+
+@cached
 def relation_to_interface(relation_name):
     """
     Given the name of a relation, return the interface that relation uses.
@@ -504,12 +517,12 @@ def relation_to_interface(relation_name):
 def relation_to_role_and_interface(relation_name):
     """
     Given the name of a relation, return the role and the name of the interface
-    that relation uses (where role is one of ``provides``, ``requires``, or ``peer``).
+    that relation uses (where role is one of ``provides``, ``requires``, or ``peers``).
 
     :returns: A tuple containing ``(role, interface)``, or ``(None, None)``.
     """
     _metadata = metadata()
-    for role in ('provides', 'requires', 'peer'):
+    for role in ('provides', 'requires', 'peers'):
         interface = _metadata.get(role, {}).get(relation_name, {}).get('interface')
         if interface:
             return role, interface
@@ -521,7 +534,7 @@ def role_and_interface_to_relations(role, interface_name):
     """
     Given a role and interface name, return a list of relation names for the
     current charm that use that interface under that role (where role is one
-    of ``provides``, ``requires``, or ``peer``).
+    of ``provides``, ``requires``, or ``peers``).
 
     :returns: A list of relation names.
     """
@@ -542,7 +555,7 @@ def interface_to_relations(interface_name):
     :returns: A list of relation names.
     """
     results = []
-    for role in ('provides', 'requires', 'peer'):
+    for role in ('provides', 'requires', 'peers'):
         results.extend(role_and_interface_to_relations(role, interface_name))
     return results
 
@@ -603,6 +616,20 @@ def close_port(port, protocol="TCP"):
     subprocess.check_call(_args)
 
 
+def open_ports(start, end, protocol="TCP"):
+    """Opens a range of service network ports"""
+    _args = ['open-port']
+    _args.append('{}-{}/{}'.format(start, end, protocol))
+    subprocess.check_call(_args)
+
+
+def close_ports(start, end, protocol="TCP"):
+    """Close a range of service network ports"""
+    _args = ['close-port']
+    _args.append('{}-{}/{}'.format(start, end, protocol))
+    subprocess.check_call(_args)
+
+
 @cached
 def unit_get(attribute):
     """Get the unit ID for the remote unit"""
@@ -624,7 +651,7 @@ def unit_private_ip():
 
 
 @cached
-def storage_get(attribute="", storage_id=""):
+def storage_get(attribute=None, storage_id=None):
     """Get storage attributes"""
     _args = ['storage-get', '--format=json']
     if storage_id:
@@ -638,7 +665,7 @@ def storage_get(attribute="", storage_id=""):
 
 
 @cached
-def storage_list(storage_name=""):
+def storage_list(storage_name=None):
     """List the storage IDs for the unit"""
     _args = ['storage-list', '--format=json']
     if storage_name:
@@ -820,6 +847,7 @@ def status_get():
 
 def translate_exc(from_exc, to_exc):
     def inner_translate_exc1(f):
+        @wraps(f)
         def inner_translate_exc2(*args, **kwargs):
             try:
                 return f(*args, **kwargs)
@@ -829,6 +857,20 @@ def translate_exc(from_exc, to_exc):
         return inner_translate_exc2
 
     return inner_translate_exc1
+
+
+def application_version_set(version):
+    """Charm authors may trigger this command from any hook to output what
+    version of the application is running. This could be a package version,
+    for instance postgres version 9.5. It could also be a build number or
+    version control revision identifier, for instance git sha 6fb7ba68. """
+
+    cmd = ['application-version-set']
+    cmd.append(version)
+    try:
+        subprocess.check_call(cmd)
+    except OSError:
+        log("Application Version: {}".format(version))
 
 
 @translate_exc(from_exc=OSError, to_exc=NotImplementedError)
@@ -862,6 +904,58 @@ def leader_set(settings=None, **kwargs):
         else:
             cmd.append('{}={}'.format(k, v))
     subprocess.check_call(cmd)
+
+
+@translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+def payload_register(ptype, klass, pid):
+    """ is used while a hook is running to let Juju know that a
+        payload has been started."""
+    cmd = ['payload-register']
+    for x in [ptype, klass, pid]:
+        cmd.append(x)
+    subprocess.check_call(cmd)
+
+
+@translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+def payload_unregister(klass, pid):
+    """ is used while a hook is running to let Juju know
+    that a payload has been manually stopped. The <class> and <id> provided
+    must match a payload that has been previously registered with juju using
+    payload-register."""
+    cmd = ['payload-unregister']
+    for x in [klass, pid]:
+        cmd.append(x)
+    subprocess.check_call(cmd)
+
+
+@translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+def payload_status_set(klass, pid, status):
+    """is used to update the current status of a registered payload.
+    The <class> and <id> provided must match a payload that has been previously
+    registered with juju using payload-register. The <status> must be one of the
+    follow: starting, started, stopping, stopped"""
+    cmd = ['payload-status-set']
+    for x in [klass, pid, status]:
+        cmd.append(x)
+    subprocess.check_call(cmd)
+
+
+@translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+def resource_get(name):
+    """used to fetch the resource path of the given name.
+
+    <name> must match a name of defined resource in metadata.yaml
+
+    returns either a path or False if resource not available
+    """
+    if not name:
+        return False
+
+    cmd = ['resource-get', name]
+    try:
+        return subprocess.check_output(cmd).decode('UTF-8')
+    except subprocess.CalledProcessError:
+        return False
 
 
 @cached
@@ -928,3 +1022,47 @@ def _run_atexit():
     for callback, args, kwargs in reversed(_atexit):
         callback(*args, **kwargs)
     del _atexit[:]
+
+
+@translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+def network_get_primary_address(binding):
+    '''
+    Retrieve the primary network address for a named binding
+
+    :param binding: string. The name of a relation of extra-binding
+    :return: string. The primary IP address for the named binding
+    :raise: NotImplementedError if run on Juju < 2.0
+    '''
+    cmd = ['network-get', '--primary-address', binding]
+    return subprocess.check_output(cmd).decode('UTF-8').strip()
+
+
+def add_metric(*args, **kwargs):
+    """Add metric values. Values may be expressed with keyword arguments. For
+    metric names containing dashes, these may be expressed as one or more
+    'key=value' positional arguments. May only be called from the collect-metrics
+    hook."""
+    _args = ['add-metric']
+    _kvpairs = []
+    _kvpairs.extend(args)
+    _kvpairs.extend(['{}={}'.format(k, v) for k, v in kwargs.items()])
+    _args.extend(sorted(_kvpairs))
+    try:
+        subprocess.check_call(_args)
+        return
+    except EnvironmentError as e:
+        if e.errno != errno.ENOENT:
+            raise
+    log_message = 'add-metric failed: {}'.format(' '.join(_kvpairs))
+    log(log_message, level='INFO')
+
+
+def meter_status():
+    """Get the meter status, if running in the meter-status-changed hook."""
+    return os.environ.get('JUJU_METER_STATUS')
+
+
+def meter_info():
+    """Get the meter status information, if running in the meter-status-changed
+    hook."""
+    return os.environ.get('JUJU_METER_INFO')

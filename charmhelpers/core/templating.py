@@ -1,33 +1,33 @@
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import os
+import sys
 
 from charmhelpers.core import host
 from charmhelpers.core import hookenv
 
 
 def render(source, target, context, owner='root', group='root',
-           perms=0o444, templates_dir=None, encoding='UTF-8'):
+           perms=0o444, templates_dir=None, encoding='UTF-8', template_loader=None):
     """
     Render a template.
 
     The `source` path, if not absolute, is relative to the `templates_dir`.
 
-    The `target` path should be absolute.
+    The `target` path should be absolute.  It can also be `None`, in which
+    case no file will be written.
 
     The context should be a dict containing the values to be replaced in the
     template.
@@ -36,8 +36,12 @@ def render(source, target, context, owner='root', group='root',
 
     If omitted, `templates_dir` defaults to the `templates` folder in the charm.
 
-    Note: Using this requires python-jinja2; if it is not installed, calling
-    this will attempt to use charmhelpers.fetch.apt_install to install it.
+    The rendered template will be written to the file as well as being returned
+    as a string.
+
+    Note: Using this requires python-jinja2 or python3-jinja2; if it is not
+    installed, calling this will attempt to use charmhelpers.fetch.apt_install
+    to install it.
     """
     try:
         from jinja2 import FileSystemLoader, Environment, exceptions
@@ -49,20 +53,32 @@ def render(source, target, context, owner='root', group='root',
                         'charmhelpers.fetch to install it',
                         level=hookenv.ERROR)
             raise
-        apt_install('python-jinja2', fatal=True)
+        if sys.version_info.major == 2:
+            apt_install('python-jinja2', fatal=True)
+        else:
+            apt_install('python3-jinja2', fatal=True)
         from jinja2 import FileSystemLoader, Environment, exceptions
 
-    if templates_dir is None:
-        templates_dir = os.path.join(hookenv.charm_dir(), 'templates')
-    loader = Environment(loader=FileSystemLoader(templates_dir))
+    if template_loader:
+        template_env = Environment(loader=template_loader)
+    else:
+        if templates_dir is None:
+            templates_dir = os.path.join(hookenv.charm_dir(), 'templates')
+        template_env = Environment(loader=FileSystemLoader(templates_dir))
     try:
         source = source
-        template = loader.get_template(source)
+        template = template_env.get_template(source)
     except exceptions.TemplateNotFound as e:
         hookenv.log('Could not load template %s from %s.' %
                     (source, templates_dir),
                     level=hookenv.ERROR)
         raise e
     content = template.render(context)
-    host.mkdir(os.path.dirname(target), owner, group, perms=0o755)
-    host.write_file(target, content.encode(encoding), owner, group, perms)
+    if target is not None:
+        target_dir = os.path.dirname(target)
+        if not os.path.exists(target_dir):
+            # This is a terrible default directory permission, as the file
+            # or its siblings will often contain secrets.
+            host.mkdir(os.path.dirname(target), owner, group, perms=0o755)
+        host.write_file(target, content.encode(encoding), owner, group, perms)
+    return content

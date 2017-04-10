@@ -3,29 +3,40 @@
 
 # Copyright 2014-2015 Canonical Limited.
 #
-# This file is part of charm-helpers.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# charm-helpers is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Lesser General Public License version 3 as
-# published by the Free Software Foundation.
+#  http://www.apache.org/licenses/LICENSE-2.0
 #
-# charm-helpers is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU Lesser General Public License for more details.
-#
-# You should have received a copy of the GNU Lesser General Public License
-# along with charm-helpers.  If not, see <http://www.gnu.org/licenses/>.
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
-__author__ = "Jorge Niedbalski <jorge.niedbalski@canonical.com>"
+import re
+import subprocess
 
+from charmhelpers.osplatform import get_platform
 from charmhelpers.core.hookenv import (
     log,
     INFO
 )
 
-from subprocess import check_call, check_output
-import re
+__platform__ = get_platform()
+if __platform__ == "ubuntu":
+    from charmhelpers.core.kernel_factory.ubuntu import (
+        persistent_modprobe,
+        update_initramfs,
+    )  # flake8: noqa -- ignore F401 for this import
+elif __platform__ == "centos":
+    from charmhelpers.core.kernel_factory.centos import (
+        persistent_modprobe,
+        update_initramfs,
+    )  # flake8: noqa -- ignore F401 for this import
+
+__author__ = "Jorge Niedbalski <jorge.niedbalski@canonical.com>"
 
 
 def modprobe(module, persist=True):
@@ -34,11 +45,9 @@ def modprobe(module, persist=True):
 
     log('Loading kernel module %s' % module, level=INFO)
 
-    check_call(cmd)
+    subprocess.check_call(cmd)
     if persist:
-        with open('/etc/modules', 'r+') as modules:
-            if module not in modules.read():
-                modules.write(module)
+        persistent_modprobe(module)
 
 
 def rmmod(module, force=False):
@@ -48,21 +57,16 @@ def rmmod(module, force=False):
         cmd.append('-f')
     cmd.append(module)
     log('Removing kernel module %s' % module, level=INFO)
-    return check_call(cmd)
+    return subprocess.check_call(cmd)
 
 
 def lsmod():
     """Shows what kernel modules are currently loaded"""
-    return check_output(['lsmod'],
-                        universal_newlines=True)
+    return subprocess.check_output(['lsmod'],
+                                   universal_newlines=True)
 
 
 def is_module_loaded(module):
     """Checks if a kernel module is already loaded"""
     matches = re.findall('^%s[ ]+' % module, lsmod(), re.M)
     return len(matches) > 0
-
-
-def update_initramfs(version='all'):
-    """Updates an initramfs image"""
-    return check_call(["update-initramfs", "-k", version, "-u"])
