@@ -46,6 +46,7 @@ log = setup_logging()
 import atexit
 import fcntl
 from keystoneclient.v2_0 import client as keystone_client
+from keystoneclient.v3 import client as keystone_v3_client
 import keystoneclient.exceptions as keystone_exceptions
 import kombu
 import os
@@ -150,16 +151,42 @@ def get_conf():
     return id_conf, charm_conf
 
 
+
+def get_keystone_client(api_version):
+    if api_version == 3:
+        ksc = keystone_v3_client.Client(
+            auth_url=os.environ['OS_AUTH_URL'],
+            username=os.environ['OS_USERNAME'],
+            password=os.environ['OS_PASSWORD'],
+            user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
+            project_domain_id=os.environ['OS_PROJECT_DOMAIN_ID'],
+            project_id=os.environ['OS_PROJECT_ID'])
+    else:
+        ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
+                                     password=os.environ['OS_PASSWORD'],
+                                     tenant_id=os.environ['OS_TENANT_ID'],
+                                     auth_url=os.environ['OS_AUTH_URL'])
+    return ksc
+
+
 def set_openstack_env(id_conf, charm_conf):
-    auth_url = '%s://%s:%s/v2.0' % (id_conf['service_protocol'],
-                                    id_conf['service_host'],
-                                    id_conf['service_port'])
+    version = 'v3' if id_conf['api_version'].startswith('3') else 'v2.0'
+    auth_url = ("{protocol}://{host}:{port}/{version}"
+                .format(protocol=id_conf['service_protocol'],
+                        host=id_conf['service_host'],
+                        port=id_conf['service_port'],
+                        version=version))
     os.environ['OS_AUTH_URL'] = auth_url
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
-
     os.environ['OS_REGION_NAME'] = charm_conf['region']
+    os.environ['OS_PROJECT_ID'] = id_conf['admin_tenant_id']
+    # Keystone charm puts all service users in the default domain. Even so, it
+    # would be better if keystone passed this information down the relation.
+    os.environ['OS_USER_DOMAIN_NAME'] = 'default'
+    os.environ['OS_PROJECT_DOMAIN_ID'] = id_conf['admin_domain_id']
+
 
 
 def do_sync(charm_conf, status_exchange):
@@ -391,25 +418,21 @@ def main():
     log.info("glance-simplestreams-sync started.")
 
     lockfile = open(SYNC_RUNNING_FLAG_FILE_NAME, 'w')
+    atexit.register(cleanup)
+
     try:
         fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        atexit.register(cleanup)
     except IOError:
         log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
         sys.exit(0)
 
-    atexit.register(cleanup)
     lockfile.write(str(os.getpid()))
 
     id_conf, charm_conf = get_conf()
 
     set_openstack_env(id_conf, charm_conf)
 
-    ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
-                                 password=os.environ['OS_PASSWORD'],
-                                 tenant_id=os.environ['OS_TENANT_ID'],
-                                 auth_url=os.environ['OS_AUTH_URL'])
-
+    ksc = get_keystone_client(id_conf['api_version'])
     services = [s._info for s in ksc.services.list()]
     servicenames = [s['name'] for s in services]
     ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
