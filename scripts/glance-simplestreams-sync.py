@@ -151,7 +151,6 @@ def get_conf():
     return id_conf, charm_conf
 
 
-
 def get_keystone_client(api_version):
     if api_version == 3:
         ksc = keystone_v3_client.Client(
@@ -159,18 +158,20 @@ def get_keystone_client(api_version):
             username=os.environ['OS_USERNAME'],
             password=os.environ['OS_PASSWORD'],
             user_domain_name=os.environ['OS_USER_DOMAIN_NAME'],
-            project_domain_id=os.environ['OS_PROJECT_DOMAIN_ID'],
+            project_domain_name=os.environ['OS_PROJECT_DOMAIN_NAME'],
+            project_name=os.environ['OS_PROJECT_NAME'],
             project_id=os.environ['OS_PROJECT_ID'])
     else:
         ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
                                      password=os.environ['OS_PASSWORD'],
                                      tenant_id=os.environ['OS_TENANT_ID'],
+                                     tenant_name=os.environ['OS_TENANT_NAME'],
                                      auth_url=os.environ['OS_AUTH_URL'])
     return ksc
 
 
 def set_openstack_env(id_conf, charm_conf):
-    version = 'v3' if id_conf['api_version'].startswith('3') else 'v2.0'
+    version = 'v3' if str(id_conf['api_version']).startswith('3') else 'v2.0'
     auth_url = ("{protocol}://{host}:{port}/{version}"
                 .format(protocol=id_conf['service_protocol'],
                         host=id_conf['service_host'],
@@ -179,14 +180,18 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_AUTH_URL'] = auth_url
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
-    os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
     os.environ['OS_REGION_NAME'] = charm_conf['region']
-    os.environ['OS_PROJECT_ID'] = id_conf['admin_tenant_id']
-    # Keystone charm puts all service users in the default domain. Even so, it
-    # would be better if keystone passed this information down the relation.
-    os.environ['OS_USER_DOMAIN_NAME'] = 'default'
-    os.environ['OS_PROJECT_DOMAIN_ID'] = id_conf['admin_domain_id']
-
+    if version == 'v3':
+        # Keystone charm puts all service users in the default domain.
+        # Even so, it would be better if keystone passed this information
+        # down the relation.
+        os.environ['OS_USER_DOMAIN_NAME'] = id_conf['admin_domain_name']
+        os.environ['OS_PROJECT_ID'] = id_conf['admin_tenant_id']
+        os.environ['OS_PROJECT_NAME'] = id_conf['admin_tenant_name']
+        os.environ['OS_PROJECT_DOMAIN_NAME'] = id_conf['admin_domain_name']
+    else:
+        os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
+        os.environ['OS_TENANT_NAME'] = id_conf['admin_tenant_name']
 
 
 def do_sync(charm_conf, status_exchange):

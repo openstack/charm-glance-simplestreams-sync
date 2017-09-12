@@ -41,9 +41,9 @@ from charmhelpers.core.hookenv import (
     charm_name,
     DEBUG,
     INFO,
-    WARNING,
     ERROR,
     status_set,
+    network_get_primary_address
 )
 
 from charmhelpers.core.sysctl import create as sysctl_create
@@ -80,6 +80,9 @@ from charmhelpers.contrib.openstack.neutron import (
 from charmhelpers.contrib.openstack.ip import (
     resolve_address,
     INTERNAL,
+    ADMIN,
+    PUBLIC,
+    ADDRESS_MAP,
 )
 from charmhelpers.contrib.network.ip import (
     get_address_in_network,
@@ -87,8 +90,8 @@ from charmhelpers.contrib.network.ip import (
     get_ipv6_addr,
     get_netmask_for_address,
     format_ipv6_addr,
-    is_address_in_network,
     is_bridge_member,
+    is_ipv6_disabled,
 )
 from charmhelpers.contrib.openstack.utils import (
     config_flags_parser,
@@ -96,6 +99,7 @@ from charmhelpers.contrib.openstack.utils import (
     git_determine_usr_bin,
     git_determine_python_path,
     enable_memcache,
+    snap_install_requested,
 )
 from charmhelpers.core.unitdata import kv
 
@@ -110,6 +114,7 @@ except ImportError:
 
 CA_CERT_PATH = '/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt'
 ADDRESS_TYPES = ['admin', 'internal', 'public']
+HAPROXY_RUN_DIR = '/var/run/haproxy/'
 
 
 def ensure_packages(packages):
@@ -242,6 +247,11 @@ class SharedDBContext(OSContextGenerator):
                     'database_password': rdata.get(password_setting),
                     'database_type': 'mysql'
                 }
+                # Note(coreycb): We can drop mysql+pymysql if we want when the
+                # following review lands, though it seems mysql+pymysql would
+                # be preferred. https://review.openstack.org/#/c/462190/
+                if snap_install_requested():
+                    ctxt['database_type'] = 'mysql+pymysql'
                 if self.context_complete(ctxt):
                     db_ssl(rdata, ctxt, self.ssl_dir)
                     return ctxt
@@ -508,6 +518,10 @@ class CephContext(OSContextGenerator):
                     ctxt['auth'] = relation_get('auth', rid=rid, unit=unit)
                 if not ctxt.get('key'):
                     ctxt['key'] = relation_get('key', rid=rid, unit=unit)
+                if not ctxt.get('rbd_features'):
+                    default_features = relation_get('rbd-features', rid=rid, unit=unit)
+                    if default_features is not None:
+                        ctxt['rbd_features'] = default_features
 
                 ceph_addrs = relation_get('ceph-public-address', rid=rid,
                                           unit=unit)
@@ -535,6 +549,8 @@ class HAProxyContext(OSContextGenerator):
     """Provides half a context for the haproxy template, which describes
     all peers to be included in the cluster.  Each charm needs to include
     its own context generator that describes the port mapping.
+
+    :side effect: mkdir is called on HAPROXY_RUN_DIR
     """
     interfaces = ['cluster']
 
@@ -542,6 +558,8 @@ class HAProxyContext(OSContextGenerator):
         self.singlenode_mode = singlenode_mode
 
     def __call__(self):
+        if not os.path.isdir(HAPROXY_RUN_DIR):
+            mkdir(path=HAPROXY_RUN_DIR)
         if not relation_ids('cluster') and not self.singlenode_mode:
             return {}
 
@@ -604,7 +622,6 @@ class HAProxyContext(OSContextGenerator):
             ctxt['haproxy_connect_timeout'] = config('haproxy-connect-timeout')
 
         if config('prefer-ipv6'):
-            ctxt['ipv6'] = True
             ctxt['local_host'] = 'ip6-localhost'
             ctxt['haproxy_host'] = '::'
         else:
@@ -720,10 +737,16 @@ class ApacheSSLContext(OSContextGenerator):
         return sorted(list(set(cns)))
 
     def get_network_addresses(self):
-        """For each network configured, return corresponding address and vip
-           (if available).
+        """For each network configured, return corresponding address and
+           hostnamr or vip (if available).
 
         Returns a list of tuples of the form:
+
+            [(address_in_net_a, hostname_in_net_a),
+             (address_in_net_b, hostname_in_net_b),
+             ...]
+
+            or, if no hostnames(s) available:
 
             [(address_in_net_a, vip_in_net_a),
              (address_in_net_b, vip_in_net_b),
@@ -736,32 +759,27 @@ class ApacheSSLContext(OSContextGenerator):
              ...]
         """
         addresses = []
-        if config('vip'):
-            vips = config('vip').split()
-        else:
-            vips = []
-
-        for net_type in ['os-internal-network', 'os-admin-network',
-                         'os-public-network']:
-            addr = get_address_in_network(config(net_type),
-                                          unit_get('private-address'))
-            if len(vips) > 1 and is_clustered():
-                if not config(net_type):
-                    log("Multiple networks configured but net_type "
-                        "is None (%s)." % net_type, level=WARNING)
-                    continue
-
-                for vip in vips:
-                    if is_address_in_network(config(net_type), vip):
-                        addresses.append((addr, vip))
-                        break
-
-            elif is_clustered() and config('vip'):
-                addresses.append((addr, config('vip')))
+        for net_type in [INTERNAL, ADMIN, PUBLIC]:
+            net_config = config(ADDRESS_MAP[net_type]['config'])
+            # NOTE(jamespage): Fallback must always be private address
+            #                  as this is used to bind services on the
+            #                  local unit.
+            fallback = unit_get("private-address")
+            if net_config:
+                addr = get_address_in_network(net_config,
+                                              fallback)
             else:
-                addresses.append((addr, addr))
+                try:
+                    addr = network_get_primary_address(
+                        ADDRESS_MAP[net_type]['binding']
+                    )
+                except NotImplementedError:
+                    addr = fallback
 
-        return sorted(addresses)
+            endpoint = resolve_address(net_type)
+            addresses.append((addr, endpoint))
+
+        return sorted(set(addresses))
 
     def __call__(self):
         if isinstance(self.external_ports, six.string_types):
@@ -788,7 +806,7 @@ class ApacheSSLContext(OSContextGenerator):
             self.configure_cert(cn)
 
         addresses = self.get_network_addresses()
-        for address, endpoint in sorted(set(addresses)):
+        for address, endpoint in addresses:
             for api_port in self.external_ports:
                 ext_port = determine_apache_port(api_port,
                                                  singlenode_mode=True)
@@ -1226,31 +1244,50 @@ MAX_DEFAULT_WORKERS = 4
 DEFAULT_MULTIPLIER = 2
 
 
+def _calculate_workers():
+    '''
+    Determine the number of worker processes based on the CPU
+    count of the unit containing the application.
+
+    Workers will be limited to MAX_DEFAULT_WORKERS in
+    container environments where no worker-multipler configuration
+    option been set.
+
+    @returns int: number of worker processes to use
+    '''
+    multiplier = config('worker-multiplier') or DEFAULT_MULTIPLIER
+    count = int(_num_cpus() * multiplier)
+    if multiplier > 0 and count == 0:
+        count = 1
+
+    if config('worker-multiplier') is None and is_container():
+        # NOTE(jamespage): Limit unconfigured worker-multiplier
+        #                  to MAX_DEFAULT_WORKERS to avoid insane
+        #                  worker configuration in LXD containers
+        #                  on large servers
+        # Reference: https://pad.lv/1665270
+        count = min(count, MAX_DEFAULT_WORKERS)
+
+    return count
+
+
+def _num_cpus():
+    '''
+    Compatibility wrapper for calculating the number of CPU's
+    a unit has.
+
+    @returns: int: number of CPU cores detected
+    '''
+    try:
+        return psutil.cpu_count()
+    except AttributeError:
+        return psutil.NUM_CPUS
+
+
 class WorkerConfigContext(OSContextGenerator):
 
-    @property
-    def num_cpus(self):
-        # NOTE: use cpu_count if present (16.04 support)
-        if hasattr(psutil, 'cpu_count'):
-            return psutil.cpu_count()
-        else:
-            return psutil.NUM_CPUS
-
     def __call__(self):
-        multiplier = config('worker-multiplier') or DEFAULT_MULTIPLIER
-        count = int(self.num_cpus * multiplier)
-        if multiplier > 0 and count == 0:
-            count = 1
-
-        if config('worker-multiplier') is None and is_container():
-            # NOTE(jamespage): Limit unconfigured worker-multiplier
-            #                  to MAX_DEFAULT_WORKERS to avoid insane
-            #                  worker configuration in LXD containers
-            #                  on large servers
-            # Reference: https://pad.lv/1665270
-            count = min(count, MAX_DEFAULT_WORKERS)
-
-        ctxt = {"workers": count}
+        ctxt = {"workers": _calculate_workers()}
         return ctxt
 
 
@@ -1258,7 +1295,7 @@ class WSGIWorkerConfigContext(WorkerConfigContext):
 
     def __init__(self, name=None, script=None, admin_script=None,
                  public_script=None, process_weight=1.00,
-                 admin_process_weight=0.75, public_process_weight=0.25):
+                 admin_process_weight=0.25, public_process_weight=0.75):
         self.service_name = name
         self.user = name
         self.group = name
@@ -1270,8 +1307,7 @@ class WSGIWorkerConfigContext(WorkerConfigContext):
         self.public_process_weight = public_process_weight
 
     def __call__(self):
-        multiplier = config('worker-multiplier') or 1
-        total_processes = self.num_cpus * multiplier
+        total_processes = _calculate_workers()
         ctxt = {
             "service_name": self.service_name,
             "user": self.user,
@@ -1369,13 +1405,41 @@ class NeutronAPIContext(OSContextGenerator):
                 'rel_key': 'enable-l3ha',
                 'default': False,
             },
+            'dns_domain': {
+                'rel_key': 'dns-domain',
+                'default': None,
+            },
+            'polling_interval': {
+                'rel_key': 'polling-interval',
+                'default': 2,
+            },
+            'rpc_response_timeout': {
+                'rel_key': 'rpc-response-timeout',
+                'default': 60,
+            },
+            'report_interval': {
+                'rel_key': 'report-interval',
+                'default': 30,
+            },
+            'enable_qos': {
+                'rel_key': 'enable-qos',
+                'default': False,
+            },
         }
         ctxt = self.get_neutron_options({})
         for rid in relation_ids('neutron-plugin-api'):
             for unit in related_units(rid):
                 rdata = relation_get(rid=rid, unit=unit)
+                # The l2-population key is used by the context as a way of
+                # checking if the api service on the other end is sending data
+                # in a recent format.
                 if 'l2-population' in rdata:
                     ctxt.update(self.get_neutron_options(rdata))
+
+        if ctxt['enable_qos']:
+            ctxt['extension_drivers'] = 'qos'
+        else:
+            ctxt['extension_drivers'] = ''
 
         return ctxt
 
@@ -1602,7 +1666,7 @@ class MemcacheContext(OSContextGenerator):
     """Memcache context
 
     This context provides options for configuring a local memcache client and
-    server
+    server for both IPv4 and IPv6
     """
 
     def __init__(self, package=None):
@@ -1620,13 +1684,24 @@ class MemcacheContext(OSContextGenerator):
             # Trusty version of memcached does not support ::1 as a listen
             # address so use host file entry instead
             release = lsb_release()['DISTRIB_CODENAME'].lower()
-            if CompareHostReleases(release) > 'trusty':
-                ctxt['memcache_server'] = '::1'
+            if is_ipv6_disabled():
+                if CompareHostReleases(release) > 'trusty':
+                    ctxt['memcache_server'] = '127.0.0.1'
+                else:
+                    ctxt['memcache_server'] = 'localhost'
+                ctxt['memcache_server_formatted'] = '127.0.0.1'
+                ctxt['memcache_port'] = '11211'
+                ctxt['memcache_url'] = '{}:{}'.format(
+                    ctxt['memcache_server_formatted'],
+                    ctxt['memcache_port'])
             else:
-                ctxt['memcache_server'] = 'ip6-localhost'
-            ctxt['memcache_server_formatted'] = '[::1]'
-            ctxt['memcache_port'] = '11211'
-            ctxt['memcache_url'] = 'inet6:{}:{}'.format(
-                ctxt['memcache_server_formatted'],
-                ctxt['memcache_port'])
+                if CompareHostReleases(release) > 'trusty':
+                    ctxt['memcache_server'] = '::1'
+                else:
+                    ctxt['memcache_server'] = 'ip6-localhost'
+                ctxt['memcache_server_formatted'] = '[::1]'
+                ctxt['memcache_port'] = '11211'
+                ctxt['memcache_url'] = 'inet6:{}:{}'.format(
+                    ctxt['memcache_server_formatted'],
+                    ctxt['memcache_port'])
         return ctxt
