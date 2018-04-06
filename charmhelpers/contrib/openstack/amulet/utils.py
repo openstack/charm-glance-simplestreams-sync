@@ -23,6 +23,7 @@ import urllib
 import urlparse
 
 import cinderclient.v1.client as cinder_client
+import cinderclient.v2.client as cinder_clientv2
 import glanceclient.v1.client as glance_client
 import heatclient.v1.client as heat_client
 from keystoneclient.v2_0 import client as keystone_client
@@ -42,13 +43,19 @@ import swiftclient
 from charmhelpers.contrib.amulet.utils import (
     AmuletUtils
 )
-from charmhelpers.core.decorators import retry_on_exception
 from charmhelpers.core.host import CompareHostReleases
 
 DEBUG = logging.DEBUG
 ERROR = logging.ERROR
 
 NOVA_CLIENT_VERSION = "2"
+
+OPENSTACK_RELEASES_PAIRS = [
+    'trusty_icehouse', 'trusty_kilo', 'trusty_liberty',
+    'trusty_mitaka', 'xenial_mitaka', 'xenial_newton',
+    'yakkety_newton', 'xenial_ocata', 'zesty_ocata',
+    'xenial_pike', 'artful_pike', 'xenial_queens',
+    'bionic_queens']
 
 
 class OpenStackAmuletUtils(AmuletUtils):
@@ -63,7 +70,34 @@ class OpenStackAmuletUtils(AmuletUtils):
         super(OpenStackAmuletUtils, self).__init__(log_level)
 
     def validate_endpoint_data(self, endpoints, admin_port, internal_port,
-                               public_port, expected):
+                               public_port, expected, openstack_release=None):
+        """Validate endpoint data. Pick the correct validator based on
+           OpenStack release. Expected data should be in the v2 format:
+           {
+               'id': id,
+               'region': region,
+               'adminurl': adminurl,
+               'internalurl': internalurl,
+               'publicurl': publicurl,
+               'service_id': service_id}
+
+           """
+        validation_function = self.validate_v2_endpoint_data
+        xenial_queens = OPENSTACK_RELEASES_PAIRS.index('xenial_queens')
+        if openstack_release and openstack_release >= xenial_queens:
+                validation_function = self.validate_v3_endpoint_data
+                expected = {
+                    'id': expected['id'],
+                    'region': expected['region'],
+                    'region_id': 'RegionOne',
+                    'url': self.valid_url,
+                    'interface': self.not_null,
+                    'service_id': expected['service_id']}
+        return validation_function(endpoints, admin_port, internal_port,
+                                   public_port, expected)
+
+    def validate_v2_endpoint_data(self, endpoints, admin_port, internal_port,
+                                  public_port, expected):
         """Validate endpoint data.
 
            Validate actual endpoint data vs expected endpoint data. The ports
@@ -92,7 +126,7 @@ class OpenStackAmuletUtils(AmuletUtils):
             return 'endpoint not found'
 
     def validate_v3_endpoint_data(self, endpoints, admin_port, internal_port,
-                                  public_port, expected):
+                                  public_port, expected, expected_num_eps=3):
         """Validate keystone v3 endpoint data.
 
         Validate the v3 endpoint data which has changed from v2.  The
@@ -138,10 +172,89 @@ class OpenStackAmuletUtils(AmuletUtils):
                 if ret:
                     return 'unexpected endpoint data - {}'.format(ret)
 
-        if len(found) != 3:
+        if len(found) != expected_num_eps:
             return 'Unexpected number of endpoints found'
 
-    def validate_svc_catalog_endpoint_data(self, expected, actual):
+    def convert_svc_catalog_endpoint_data_to_v3(self, ep_data):
+        """Convert v2 endpoint data into v3.
+
+           {
+               'service_name1': [
+                   {
+                       'adminURL': adminURL,
+                       'id': id,
+                       'region': region.
+                       'publicURL': publicURL,
+                       'internalURL': internalURL
+                   }],
+               'service_name2': [
+                   {
+                       'adminURL': adminURL,
+                       'id': id,
+                       'region': region.
+                       'publicURL': publicURL,
+                       'internalURL': internalURL
+                   }],
+           }
+          """
+        self.log.warn("Endpoint ID and Region ID validation is limited to not "
+                      "null checks after v2 to v3 conversion")
+        for svc in ep_data.keys():
+            assert len(ep_data[svc]) == 1, "Unknown data format"
+            svc_ep_data = ep_data[svc][0]
+            ep_data[svc] = [
+                {
+                    'url': svc_ep_data['adminURL'],
+                    'interface': 'admin',
+                    'region': svc_ep_data['region'],
+                    'region_id': self.not_null,
+                    'id': self.not_null},
+                {
+                    'url': svc_ep_data['publicURL'],
+                    'interface': 'public',
+                    'region': svc_ep_data['region'],
+                    'region_id': self.not_null,
+                    'id': self.not_null},
+                {
+                    'url': svc_ep_data['internalURL'],
+                    'interface': 'internal',
+                    'region': svc_ep_data['region'],
+                    'region_id': self.not_null,
+                    'id': self.not_null}]
+        return ep_data
+
+    def validate_svc_catalog_endpoint_data(self, expected, actual,
+                                           openstack_release=None):
+        """Validate service catalog endpoint data. Pick the correct validator
+           for the OpenStack version. Expected data should be in the v2 format:
+           {
+               'service_name1': [
+                   {
+                       'adminURL': adminURL,
+                       'id': id,
+                       'region': region.
+                       'publicURL': publicURL,
+                       'internalURL': internalURL
+                   }],
+               'service_name2': [
+                   {
+                       'adminURL': adminURL,
+                       'id': id,
+                       'region': region.
+                       'publicURL': publicURL,
+                       'internalURL': internalURL
+                   }],
+           }
+
+           """
+        validation_function = self.validate_v2_svc_catalog_endpoint_data
+        xenial_queens = OPENSTACK_RELEASES_PAIRS.index('xenial_queens')
+        if openstack_release and openstack_release >= xenial_queens:
+            validation_function = self.validate_v3_svc_catalog_endpoint_data
+            expected = self.convert_svc_catalog_endpoint_data_to_v3(expected)
+        return validation_function(expected, actual)
+
+    def validate_v2_svc_catalog_endpoint_data(self, expected, actual):
         """Validate service catalog endpoint data.
 
            Validate a list of actual service catalog endpoints vs a list of
@@ -310,7 +423,6 @@ class OpenStackAmuletUtils(AmuletUtils):
         self.log.debug('Checking if tenant exists ({})...'.format(tenant))
         return tenant in [t.name for t in keystone.tenants.list()]
 
-    @retry_on_exception(5, base_delay=10)
     def keystone_wait_for_propagation(self, sentry_relation_pairs,
                                       api_version):
         """Iterate over list of sentry and relation tuples and verify that
@@ -326,10 +438,10 @@ class OpenStackAmuletUtils(AmuletUtils):
             rel = sentry.relation('identity-service',
                                   relation_name)
             self.log.debug('keystone relation data: {}'.format(rel))
-            if rel['api_version'] != str(api_version):
+            if rel.get('api_version') != str(api_version):
                 raise Exception("api_version not propagated through relation"
                                 " data yet ('{}' != '{}')."
-                                "".format(rel['api_version'], api_version))
+                                "".format(rel.get('api_version'), api_version))
 
     def keystone_configure_api_version(self, sentry_relation_pairs, deployment,
                                        api_version):
@@ -348,15 +460,16 @@ class OpenStackAmuletUtils(AmuletUtils):
 
         config = {'preferred-api-version': api_version}
         deployment.d.configure('keystone', config)
+        deployment._auto_wait_for_status()
         self.keystone_wait_for_propagation(sentry_relation_pairs, api_version)
 
-    def authenticate_cinder_admin(self, keystone_sentry, username,
-                                  password, tenant):
+    def authenticate_cinder_admin(self, keystone, api_version=2):
         """Authenticates admin user with cinder."""
-        # NOTE(beisner): cinder python client doesn't accept tokens.
-        keystone_ip = keystone_sentry.info['public-address']
-        ept = "http://{}:5000/v2.0".format(keystone_ip.strip().decode('utf-8'))
-        return cinder_client.Client(username, password, tenant, ept)
+        self.log.debug('Authenticating cinder admin...')
+        _clients = {
+            1: cinder_client.Client,
+            2: cinder_clientv2.Client}
+        return _clients[api_version](session=keystone.session)
 
     def authenticate_keystone(self, keystone_ip, username, password,
                               api_version=False, admin_port=False,
@@ -364,13 +477,36 @@ class OpenStackAmuletUtils(AmuletUtils):
                               project_domain_name=None, project_name=None):
         """Authenticate with Keystone"""
         self.log.debug('Authenticating with keystone...')
-        port = 5000
-        if admin_port:
-            port = 35357
-        base_ep = "http://{}:{}".format(keystone_ip.strip().decode('utf-8'),
-                                        port)
-        if not api_version or api_version == 2:
-            ep = base_ep + "/v2.0"
+        if not api_version:
+            api_version = 2
+        sess, auth = self.get_keystone_session(
+            keystone_ip=keystone_ip,
+            username=username,
+            password=password,
+            api_version=api_version,
+            admin_port=admin_port,
+            user_domain_name=user_domain_name,
+            domain_name=domain_name,
+            project_domain_name=project_domain_name,
+            project_name=project_name
+        )
+        if api_version == 2:
+            client = keystone_client.Client(session=sess)
+        else:
+            client = keystone_client_v3.Client(session=sess)
+        # This populates the client.service_catalog
+        client.auth_ref = auth.get_access(sess)
+        return client
+
+    def get_keystone_session(self, keystone_ip, username, password,
+                             api_version=False, admin_port=False,
+                             user_domain_name=None, domain_name=None,
+                             project_domain_name=None, project_name=None):
+        """Return a keystone session object"""
+        ep = self.get_keystone_endpoint(keystone_ip,
+                                        api_version=api_version,
+                                        admin_port=admin_port)
+        if api_version == 2:
             auth = v2.Password(
                 username=username,
                 password=password,
@@ -378,12 +514,7 @@ class OpenStackAmuletUtils(AmuletUtils):
                 auth_url=ep
             )
             sess = keystone_session.Session(auth=auth)
-            client = keystone_client.Client(session=sess)
-            # This populates the client.service_catalog
-            client.auth_ref = auth.get_access(sess)
-            return client
         else:
-            ep = base_ep + "/v3"
             auth = v3.Password(
                 user_domain_name=user_domain_name,
                 username=username,
@@ -394,10 +525,57 @@ class OpenStackAmuletUtils(AmuletUtils):
                 auth_url=ep
             )
             sess = keystone_session.Session(auth=auth)
-            client = keystone_client_v3.Client(session=sess)
-            # This populates the client.service_catalog
-            client.auth_ref = auth.get_access(sess)
-            return client
+        return (sess, auth)
+
+    def get_keystone_endpoint(self, keystone_ip, api_version=None,
+                              admin_port=False):
+        """Return keystone endpoint"""
+        port = 5000
+        if admin_port:
+            port = 35357
+        base_ep = "http://{}:{}".format(keystone_ip.strip().decode('utf-8'),
+                                        port)
+        if api_version == 2:
+            ep = base_ep + "/v2.0"
+        else:
+            ep = base_ep + "/v3"
+        return ep
+
+    def get_default_keystone_session(self, keystone_sentry,
+                                     openstack_release=None):
+        """Return a keystone session object and client object assuming standard
+           default settings
+
+           Example call in amulet tests:
+               self.keystone_session, self.keystone = u.get_default_keystone_session(
+                   self.keystone_sentry,
+                   openstack_release=self._get_openstack_release())
+
+           The session can then be used to auth other clients:
+               neutronclient.Client(session=session)
+               aodh_client.Client(session=session)
+               eyc
+        """
+        self.log.debug('Authenticating keystone admin...')
+        api_version = 2
+        client_class = keystone_client.Client
+        # 11 => xenial_queens
+        if openstack_release and openstack_release >= 11:
+            api_version = 3
+            client_class = keystone_client_v3.Client
+        keystone_ip = keystone_sentry.info['public-address']
+        session, auth = self.get_keystone_session(
+            keystone_ip,
+            api_version=api_version,
+            username='admin',
+            password='openstack',
+            project_name='admin',
+            user_domain_name='admin_domain',
+            project_domain_name='admin_domain')
+        client = client_class(session=session)
+        # This populates the client.service_catalog
+        client.auth_ref = auth.get_access(session)
+        return session, client
 
     def authenticate_keystone_admin(self, keystone_sentry, user, password,
                                     tenant=None, api_version=None,
@@ -617,12 +795,24 @@ class OpenStackAmuletUtils(AmuletUtils):
             self.log.debug('Keypair ({}) already exists, '
                            'using it.'.format(keypair_name))
             return _keypair
-        except:
+        except Exception:
             self.log.debug('Keypair ({}) does not exist, '
                            'creating it.'.format(keypair_name))
 
         _keypair = nova.keypairs.create(name=keypair_name)
         return _keypair
+
+    def _get_cinder_obj_name(self, cinder_object):
+        """Retrieve name of cinder object.
+
+        :param cinder_object: cinder snapshot or volume object
+        :returns: str cinder object name
+        """
+        # v1 objects store name in 'display_name' attr but v2+ use 'name'
+        try:
+            return cinder_object.display_name
+        except AttributeError:
+            return cinder_object.name
 
     def create_cinder_volume(self, cinder, vol_name="demo-vol", vol_size=1,
                              img_id=None, src_vol_id=None, snap_id=None):
@@ -674,6 +864,13 @@ class OpenStackAmuletUtils(AmuletUtils):
                                             source_volid=src_vol_id,
                                             snapshot_id=snap_id)
             vol_id = vol_new.id
+        except TypeError:
+            vol_new = cinder.volumes.create(name=vol_name,
+                                            imageRef=img_id,
+                                            size=vol_size,
+                                            source_volid=src_vol_id,
+                                            snapshot_id=snap_id)
+            vol_id = vol_new.id
         except Exception as e:
             msg = 'Failed to create volume: {}'.format(e)
             amulet.raise_status(amulet.FAIL, msg=msg)
@@ -688,7 +885,7 @@ class OpenStackAmuletUtils(AmuletUtils):
 
         # Re-validate new volume
         self.log.debug('Validating volume attributes...')
-        val_vol_name = cinder.volumes.get(vol_id).display_name
+        val_vol_name = self._get_cinder_obj_name(cinder.volumes.get(vol_id))
         val_vol_boot = cinder.volumes.get(vol_id).bootable
         val_vol_stat = cinder.volumes.get(vol_id).status
         val_vol_size = cinder.volumes.get(vol_id).size
@@ -836,9 +1033,12 @@ class OpenStackAmuletUtils(AmuletUtils):
         :returns: List of pool name, object count, kb disk space used
         """
         df = self.get_ceph_df(sentry_unit)
-        pool_name = df['pools'][pool_id]['name']
-        obj_count = df['pools'][pool_id]['stats']['objects']
-        kb_used = df['pools'][pool_id]['stats']['kb_used']
+        for pool in df['pools']:
+            if pool['id'] == pool_id:
+                pool_name = pool['name']
+                obj_count = pool['stats']['objects']
+                kb_used = pool['stats']['kb_used']
+
         self.log.debug('Ceph {} pool (ID {}): {} objects, '
                        '{} kb used'.format(pool_name, pool_id,
                                            obj_count, kb_used))

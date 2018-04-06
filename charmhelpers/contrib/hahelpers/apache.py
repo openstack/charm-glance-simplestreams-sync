@@ -65,7 +65,8 @@ def get_ca_cert():
     if ca_cert is None:
         log("Inspecting identity-service relations for CA SSL certificate.",
             level=INFO)
-        for r_id in relation_ids('identity-service'):
+        for r_id in (relation_ids('identity-service') +
+                     relation_ids('identity-credentials')):
             for unit in relation_list(r_id):
                 if ca_cert is None:
                     ca_cert = relation_get('ca_cert',
@@ -90,6 +91,6 @@ def install_ca_cert(ca_cert):
             log("CA cert is the same as installed version", level=INFO)
         else:
             log("Installing new CA cert", level=INFO)
-            with open(cert_file, 'w') as crt:
+            with open(cert_file, 'wb') as crt:
                 crt.write(ca_cert)
             subprocess.check_call(['update-ca-certificates', '--fresh'])
