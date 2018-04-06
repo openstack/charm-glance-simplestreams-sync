@@ -53,7 +53,13 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
         self._deploy()
 
         u.log.info('Waiting on extended status checks...')
-        exclude_services = []
+
+        # NOTE(beisner):  This charm lacks support for juju workload status.
+        # That means that this charm will not affirm a ready state for those
+        # waiting for a ready state through tools like juju-wait, leading to
+        # anticipated race conditions and automation blocking conditions.
+        exclude_services = ['glance-simplestreams-sync']
+
         self._auto_wait_for_status(exclude_services=exclude_services)
 
         self.d.sentry.wait()
@@ -78,8 +84,11 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             {'name': 'rabbitmq-server'},
             {'name': 'keystone'},
         ]
-        super(GlanceBasicDeployment, self)._add_services(this_service,
-                                                         other_services)
+        super(GlanceBasicDeployment, self)._add_services(
+            this_service,
+            other_services,
+            use_source=['glance-simplestreams-sync'],
+        )
 
     def _add_relations(self):
         """Add relations for the services."""
@@ -569,113 +578,3 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             if ret:
                 message = "glance registry paste config error: {}".format(ret)
                 amulet.raise_status(amulet.FAIL, msg=message)
-
-    def test_410_glance_image_create_delete(self):
-        """Create new cirros image in glance, verify, then delete it."""
-        u.log.debug('Creating, checking and deleting glance image...')
-        img_new = u.create_cirros_image(self.glance, "cirros-image-1")
-        img_id = img_new.id
-        u.delete_resource(self.glance.images, img_id, msg="glance image")
-
-    def test_411_set_disk_format(self):
-        sleep_time = 30
-        if self._get_openstack_release() >= self.trusty_kilo:
-            section = 'image_format'
-        elif self._get_openstack_release() > self.trusty_icehouse:
-            section = 'DEFAULT'
-        else:
-            u.log.debug('Test not supported before juno')
-            return
-        sentry = self.glance_sentry
-        juju_service = 'glance'
-
-        # Expected default and alternate values
-        set_default = {
-            'disk-formats': 'ami,ari,aki,vhd,vmdk,raw,qcow2,vdi,iso,root-tar'}
-        set_alternate = {'disk-formats': 'qcow2'}
-
-        # Config file affected by juju set config change
-        conf_file = '/etc/glance/glance-api.conf'
-
-        # Make config change, check for service restarts
-        u.log.debug('Setting disk format {}...'.format(juju_service))
-        self.d.configure(juju_service, set_alternate)
-
-        u.log.debug('Sleeping to let hooks fire')
-        time.sleep(sleep_time)
-        u.log.debug("Checking disk format option has updated")
-        ret = u.validate_config_data(
-            sentry,
-            conf_file,
-            section,
-            {'disk_formats': 'qcow2'})
-        if ret:
-            msg = "disk_formats was not updated in section {} in {}".format(
-                section,
-                conf_file)
-            amulet.raise_status(amulet.FAIL, msg=msg)
-
-        self.d.configure(juju_service, set_default)
-
-    def test_900_glance_restart_on_config_change(self):
-        """Verify that the specified services are restarted when the config
-           is changed."""
-        sentry = self.glance_sentry
-        juju_service = 'glance'
-
-        # Expected default and alternate values
-        set_default = {'use-syslog': 'False'}
-        set_alternate = {'use-syslog': 'True'}
-
-        # Config file affected by juju set config change
-        conf_file = '/etc/glance/glance-api.conf'
-
-        # Services which are expected to restart upon config change
-        services = {
-            'glance-api': conf_file,
-            'glance-registry': conf_file,
-        }
-
-        # Make config change, check for service restarts
-        u.log.debug('Making config change on {}...'.format(juju_service))
-        mtime = u.get_sentry_time(sentry)
-        self.d.configure(juju_service, set_alternate)
-
-        sleep_time = 30
-        for s, conf_file in services.iteritems():
-            u.log.debug("Checking that service restarted: {}".format(s))
-            if not u.validate_service_config_changed(sentry, mtime, s,
-                                                     conf_file,
-                                                     retry_count=4,
-                                                     retry_sleep_time=20,
-                                                     sleep_time=sleep_time):
-                self.d.configure(juju_service, set_default)
-                msg = "service {} didn't restart after config change".format(s)
-                amulet.raise_status(amulet.FAIL, msg=msg)
-            sleep_time = 0
-
-        self.d.configure(juju_service, set_default)
-
-    def test_901_pause_resume(self):
-        """Test pause and resume actions."""
-        u.log.debug('Checking pause and resume actions...')
-
-        unit = self.d.sentry['glance'][0]
-        unit_name = unit.info['unit_name']
-        u.log.debug("Unit name: {}".format(unit_name))
-
-        u.log.debug('Checking for active status on {}'.format(unit_name))
-        assert u.status_get(unit)[0] == "active"
-
-        u.log.debug('Running pause action on {}'.format(unit_name))
-        self._assert_services(should_run=True)
-        action_id = u.run_action(unit, "pause")
-        u.log.debug('Waiting on action {}'.format(action_id))
-        assert u.wait_on_action(action_id), "Pause action failed."
-        self._assert_services(should_run=False)
-
-        u.log.debug('Running resume action on {}'.format(unit_name))
-        action_id = u.run_action(unit, "resume")
-        u.log.debug('Waiting on action {}'.format(action_id))
-        assert u.wait_on_action(action_id), "Resume action failed"
-        self._assert_services(should_run=True)
