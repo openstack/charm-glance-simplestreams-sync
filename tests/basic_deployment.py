@@ -19,7 +19,6 @@ Basic glance amulet functional tests.
 """
 
 import amulet
-import time
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -92,14 +91,22 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
 
     def _add_relations(self):
         """Add relations for the services."""
-        relations = {'glance:identity-service': 'keystone:identity-service',
-                     'glance:shared-db': 'percona-cluster:shared-db',
-                     'keystone:shared-db': 'percona-cluster:shared-db',
-                     'glance:amqp': 'rabbitmq-server:amqp'}
+        relations = {
+            'glance:identity-service': 'keystone:identity-service',
+            'glance:shared-db': 'percona-cluster:shared-db',
+            'keystone:shared-db': 'percona-cluster:shared-db',
+            'glance:amqp': 'rabbitmq-server:amqp',
+            'glance-simplestreams-sync:identity-service':
+                'keystone:identity-service',
+            'glance-simplestreams-sync:amqp':
+                'rabbitmq-server:amqp',
+        }
+
         super(GlanceBasicDeployment, self)._add_relations(relations)
 
     def _configure_services(self):
         """Configure all of the services."""
+        gss_config = {}
         glance_config = {}
         keystone_config = {
             'admin-password': 'openstack',
@@ -112,6 +119,7 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             'sst-password': 'ChangeMe123',
         }
         configs = {
+            'glance-simplestreams-sync': gss_config,
             'glance': glance_config,
             'keystone': keystone_config,
             'percona-cluster': pxc_config,
