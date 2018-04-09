@@ -106,7 +106,11 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
 
     def _configure_services(self):
         """Configure all of the services."""
-        gss_config = {}
+        gss_config = {
+            # https://bugs.launchpad.net/bugs/1686437
+            'source': 'ppa:simplestreams-dev/trunk',
+            'use_swift': 'False',
+        }
         glance_config = {}
         keystone_config = {
             'admin-password': 'openstack',
