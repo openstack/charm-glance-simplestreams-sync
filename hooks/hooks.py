@@ -114,8 +114,11 @@ class MirrorsConfigServiceContext(OSContextGenerator):
 
 def ensure_perms():
     """Ensure gss file permissions."""
-    os.chmod(ID_CONF_FILE_NAME, 0o640)
-    os.chmod(MIRRORS_CONF_FILE_NAME, 0o640)
+    if os.path.isfile(ID_CONF_FILE_NAME):
+        os.chmod(ID_CONF_FILE_NAME, 0o640)
+
+    if os.path.isfile(MIRRORS_CONF_FILE_NAME,):
+        os.chmod(MIRRORS_CONF_FILE_NAME, 0o640)
 
 def get_release():
     return get_os_codename_package('glance-common', fatal=False) or 'icehouse'
