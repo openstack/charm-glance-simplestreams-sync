@@ -112,6 +112,7 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     user_agent=config['user_agent'],
                     hypervisor_mapping=config['hypervisor_mapping'])
 
+
 def ensure_perms():
     """Ensure gss file permissions."""
     if os.path.isfile(ID_CONF_FILE_NAME):
@@ -119,6 +120,7 @@ def ensure_perms():
 
     if os.path.isfile(MIRRORS_CONF_FILE_NAME,):
         os.chmod(MIRRORS_CONF_FILE_NAME, 0o640)
+
 
 def get_release():
     return get_os_codename_package('glance-common', fatal=False) or 'icehouse'
@@ -133,6 +135,7 @@ def get_configs():
                                          AMQPContext(),
                                          UnitNameContext()])
     return configs
+
 
 def install_cron_script():
     """Installs cron job in /etc/cron.$frequency/ for repeating sync
@@ -200,16 +203,12 @@ def identity_service_joined(relation_id=None):
     hookenv.relation_set(relation_id=relation_id, **relation_data)
 
 
-
-
-
-
-
 @hooks.hook('identity-service-relation-changed')
 def identity_service_changed():
     configs = get_configs()
     configs.write(ID_CONF_FILE_NAME)
     ensure_perms()
+
 
 @hooks.hook('install.real')
 def install():
