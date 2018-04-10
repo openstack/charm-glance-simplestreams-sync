@@ -7,10 +7,11 @@ tags
 *.pyc
 .unit-state.db
 tests/*.img
-trusty
 .idea
 .stestr
 .local
 .pydevproject
+repo-info
+results*.txt
 func-results.json
 __pycache__
