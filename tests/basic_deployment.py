@@ -15,9 +15,10 @@
 # limitations under the License.
 
 """
-Basic glance amulet functional tests.
+Basic glance-simplestreams-sync functional tests.
 """
 
+import time
 import amulet
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
@@ -133,6 +134,7 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
     def _initialize_tests(self):
         """Perform final initialization before tests get run."""
         # Access the sentries for inspecting service units
+        self.gss_sentry = self.d.sentry['glance-simplestreams-sync'][0]
         self.pxc_sentry = self.d.sentry['percona-cluster'][0]
         self.glance_sentry = self.d.sentry['glance'][0]
         self.keystone_sentry = self.d.sentry['keystone'][0]
@@ -149,6 +151,56 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
 
         # Authenticate admin with glance endpoint
         self.glance = u.authenticate_glance_admin(self.keystone)
+
+    def test_001_wait_for_image_sync(self):
+        """Wait for images to be synced. Expect at least one."""
+
+        max_image_wait = 600
+        retry_sleep = 2
+        images = []
+
+        time_start = time.time()
+        while not images:
+            images = [image.name for image in self.glance.images.list()]
+            u.log.debug('Images: {}'.format(images))
+            if images:
+                break
+
+            time_now = time.time()
+            if time_now - time_start >= max_image_wait:
+                raise Exception('Images not synced within '
+                                '{}s'.format(time_now - time_start))
+            else:
+                u.log.debug('Waiting {}s'.format(retry_sleep))
+                time.sleep(retry_sleep)
+                retry_sleep = retry_sleep + 4 if retry_sleep < 30 else 30
+
+    def test_050_gss_permissions_regression_check_lp1611987(self):
+        """Assert the intended file permissions on gss config files
+           https://bugs.launchpad.net/bugs/1611987"""
+
+        perm_check = [
+            {
+                'file_path': '/etc/glance-simplestreams-sync/identity.yaml',
+                'expected_perms': '640',
+                'unit_sentry': self.gss_sentry
+            },
+            {
+                'file_path': '/etc/glance-simplestreams-sync/mirrors.yaml',
+                'expected_perms': '640',
+                'unit_sentry': self.gss_sentry
+            },
+        ]
+
+        for _check in perm_check:
+            cmd = 'stat -c %a {}'.format(_check['file_path'])
+            output, _ = u.run_cmd_unit(_check['unit_sentry'], cmd)
+
+            assert output == _check['expected_perms'], \
+                '{} perms not as expected'.format(_check['file_path'])
+
+            u.log.debug('Permissions on {}: {}'.format(
+                _check['file_path'], output))
 
     def test_100_services(self):
         """Verify that the expected services are running on the
