@@ -1,3 +1,8 @@
+# Notice
+
+This charm has been tested with Trusty and Xenial series.  Bionic series
+is enabled, but is still under testing and in development.
+
 # Overview
 
 This charm provides a service that syncs your OpenStack cloud's

@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 #
 # Copyright 2014 Canonical Ltd. released under AGPL
 #
@@ -113,6 +113,15 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     hypervisor_mapping=config['hypervisor_mapping'])
 
 
+def ensure_perms():
+    """Ensure gss file permissions."""
+    if os.path.isfile(ID_CONF_FILE_NAME):
+        os.chmod(ID_CONF_FILE_NAME, 0o640)
+
+    if os.path.isfile(MIRRORS_CONF_FILE_NAME,):
+        os.chmod(MIRRORS_CONF_FILE_NAME, 0o640)
+
+
 def get_release():
     return get_os_codename_package('glance-common', fatal=False) or 'icehouse'
 
@@ -198,6 +207,7 @@ def identity_service_joined(relation_id=None):
 def identity_service_changed():
     configs = get_configs()
     configs.write(ID_CONF_FILE_NAME)
+    ensure_perms()
 
 
 @hooks.hook('install.real')
@@ -230,6 +240,7 @@ def config_changed():
     hookenv.log('begin config-changed hook.')
     configs = get_configs()
     configs.write(MIRRORS_CONF_FILE_NAME)
+    ensure_perms()
 
     update_nrpe_config()
 
@@ -259,6 +270,7 @@ def upgrade_charm():
     update_nrpe_config()
     configs = get_configs()
     configs.write_all()
+    ensure_perms()
 
 
 @hooks.hook('amqp-relation-joined')
