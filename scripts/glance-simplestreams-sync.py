@@ -23,6 +23,7 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import copy
 import logging
 import os
 
@@ -137,6 +138,23 @@ def read_conf(filename):
     return confobj
 
 
+def redact_keys(data_dict, key_list=None):
+    """Return a dict with top-level keys having redacted values."""
+    if not key_list:
+        key_list = [
+            'admin',
+            'password',
+            'rabbit_password',
+            'admin_password',
+        ]
+
+    _data = copy.deepcopy(data_dict)
+    for _key in key_list:
+        if _key in _data.keys():
+            _data[_key] = '<redacted>'
+    return _data
+
+
 def get_conf():
     conf_files = [ID_CONF_FILE_NAME, CHARM_CONF_FILE_NAME]
     for conf_file_name in conf_files:
@@ -147,12 +165,12 @@ def get_conf():
     id_conf = read_conf(ID_CONF_FILE_NAME)
     if None in id_conf.values():
         log.info("Configuration value missing in {}:\n"
-                 "{}".format(ID_CONF_FILE_NAME, id_conf))
+                 "{}".format(ID_CONF_FILE_NAME, redact_keys(id_conf)))
         sys.exit(1)
     charm_conf = read_conf(CHARM_CONF_FILE_NAME)
     if None in charm_conf.values():
         log.info("Configuration value missing in {}:\n"
-                 "{}".format(CHARM_CONF_FILE_NAME, charm_conf))
+                 "{}".format(CHARM_CONF_FILE_NAME, redact_keys(charm_conf)))
         sys.exit(1)
 
     return id_conf, charm_conf
