@@ -190,6 +190,11 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
                 'expected_perms': '640',
                 'unit_sentry': self.gss_sentry
             },
+            {
+                'file_path': '/var/log/glance-simplestreams-sync.log',
+                'expected_perms': '640',
+                'unit_sentry': self.gss_sentry
+            },
         ]
 
         for _check in perm_check:
