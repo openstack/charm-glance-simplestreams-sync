@@ -24,10 +24,16 @@
 # juju hook context itself.
 
 import logging
-
+import os
 
 def setup_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
+
+    if not os.path.exists(logfilename):
+        open(logfilename, 'a').close()
+
+    os.chmod(logfilename, 0o640)
+
     h = logging.FileHandler(logfilename)
     h.setFormatter(logging.Formatter(
         '%(levelname)-9s * %(asctime)s [PID:%(process)d] * %(name)s * '
