@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 #
 # Copyright 2014 Canonical Ltd.
 #
@@ -26,6 +26,7 @@
 import logging
 import os
 
+
 def setup_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
 
@@ -46,6 +47,7 @@ def setup_logging():
 
     return logger
 
+
 log = setup_logging()
 
 
@@ -55,7 +57,6 @@ from keystoneclient.v2_0 import client as keystone_client
 from keystoneclient.v3 import client as keystone_v3_client
 import keystoneclient.exceptions as keystone_exceptions
 import kombu
-import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
@@ -202,7 +203,7 @@ def set_openstack_env(id_conf, charm_conf):
 
 def do_sync(charm_conf, status_exchange):
 
-    user_agent = charm_conf.get("user_agent")
+    # user_agent = charm_conf.get("user_agent")
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
@@ -210,7 +211,7 @@ def do_sync(charm_conf, status_exchange):
         log.info("configuring sync for url {}".format(mirror_info))
 
         smirror = UrlMirrorReader(
-            mirror_url, policy=policy) # user_agent=user_agent)
+            mirror_url, policy=policy)  # user_agent=user_agent
 
         if charm_conf['use_swift']:
             store = SwiftObjectStore(SWIFT_DATA_DIR)
@@ -226,7 +227,8 @@ def do_sync(charm_conf, status_exchange):
                   'content_id': content_id,
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters'],
-                  'hypervisor_mapping': charm_conf.get('hypervisor_mapping', False)}
+                  'hypervisor_mapping': charm_conf.get('hypervisor_mapping',
+                                                       False)}
 
         mirror_args = dict(config=config, objectstore=store,
                            name_prefix=charm_conf['name_prefix'])
