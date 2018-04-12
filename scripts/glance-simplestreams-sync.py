@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 #
 # Copyright 2014 Canonical Ltd.
 #
@@ -23,11 +23,19 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import copy
 import logging
+import os
 
 
 def setup_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
+
+    if not os.path.exists(logfilename):
+        open(logfilename, 'a').close()
+
+    os.chmod(logfilename, 0o640)
+
     h = logging.FileHandler(logfilename)
     h.setFormatter(logging.Formatter(
         '%(levelname)-9s * %(asctime)s [PID:%(process)d] * %(name)s * '
@@ -40,6 +48,7 @@ def setup_logging():
 
     return logger
 
+
 log = setup_logging()
 
 
@@ -49,7 +58,6 @@ from keystoneclient.v2_0 import client as keystone_client
 from keystoneclient.v3 import client as keystone_v3_client
 import keystoneclient.exceptions as keystone_exceptions
 import kombu
-import os
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
 from simplestreams.util import read_signed, path_from_mirror_url
@@ -130,6 +138,23 @@ def read_conf(filename):
     return confobj
 
 
+def redact_keys(data_dict, key_list=None):
+    """Return a dict with top-level keys having redacted values."""
+    if not key_list:
+        key_list = [
+            'admin',
+            'password',
+            'rabbit_password',
+            'admin_password',
+        ]
+
+    _data = copy.deepcopy(data_dict)
+    for _key in key_list:
+        if _key in _data.keys():
+            _data[_key] = '<redacted>'
+    return _data
+
+
 def get_conf():
     conf_files = [ID_CONF_FILE_NAME, CHARM_CONF_FILE_NAME]
     for conf_file_name in conf_files:
@@ -140,12 +165,12 @@ def get_conf():
     id_conf = read_conf(ID_CONF_FILE_NAME)
     if None in id_conf.values():
         log.info("Configuration value missing in {}:\n"
-                 "{}".format(ID_CONF_FILE_NAME, id_conf))
+                 "{}".format(ID_CONF_FILE_NAME, redact_keys(id_conf)))
         sys.exit(1)
     charm_conf = read_conf(CHARM_CONF_FILE_NAME)
     if None in charm_conf.values():
         log.info("Configuration value missing in {}:\n"
-                 "{}".format(CHARM_CONF_FILE_NAME, charm_conf))
+                 "{}".format(CHARM_CONF_FILE_NAME, redact_keys(charm_conf)))
         sys.exit(1)
 
     return id_conf, charm_conf
@@ -196,7 +221,12 @@ def set_openstack_env(id_conf, charm_conf):
 
 def do_sync(charm_conf, status_exchange):
 
-    user_agent = charm_conf.get("user_agent")
+    # NOTE(beisner): the user_agent variable was an unused assignment (lint).
+    # It may be worth re-visiting its usage, intent and benefit with the
+    # UrlMirrorReader call below at some point.  Leaving it disabled for now,
+    # and not assigning it since it is not currently utilized.
+    # user_agent = charm_conf.get("user_agent")
+
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
@@ -204,7 +234,7 @@ def do_sync(charm_conf, status_exchange):
         log.info("configuring sync for url {}".format(mirror_info))
 
         smirror = UrlMirrorReader(
-            mirror_url, policy=policy) # user_agent=user_agent)
+            mirror_url, policy=policy)
 
         if charm_conf['use_swift']:
             store = SwiftObjectStore(SWIFT_DATA_DIR)
@@ -220,7 +250,8 @@ def do_sync(charm_conf, status_exchange):
                   'content_id': content_id,
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters'],
-                  'hypervisor_mapping': charm_conf.get('hypervisor_mapping', False)}
+                  'hypervisor_mapping': charm_conf.get('hypervisor_mapping',
+                                                       False)}
 
         mirror_args = dict(config=config, objectstore=store,
                            name_prefix=charm_conf['name_prefix'])
