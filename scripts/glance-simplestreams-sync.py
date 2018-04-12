@@ -221,7 +221,12 @@ def set_openstack_env(id_conf, charm_conf):
 
 def do_sync(charm_conf, status_exchange):
 
+    # NOTE(beisner): the user_agent variable was an unused assignment (lint).
+    # It may be worth re-visiting its usage, intent and benefit with the
+    # UrlMirrorReader call below at some point.  Leaving it disabled for now,
+    # and not assigning it since it is not currently utilized.
     # user_agent = charm_conf.get("user_agent")
+
     for mirror_info in charm_conf['mirror_list']:
         mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
                                                         mirror_info['path'])
@@ -229,7 +234,7 @@ def do_sync(charm_conf, status_exchange):
         log.info("configuring sync for url {}".format(mirror_info))
 
         smirror = UrlMirrorReader(
-            mirror_url, policy=policy)  # user_agent=user_agent
+            mirror_url, policy=policy)
 
         if charm_conf['use_swift']:
             store = SwiftObjectStore(SWIFT_DATA_DIR)
