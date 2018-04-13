@@ -18,8 +18,9 @@
 Basic glance-simplestreams-sync functional tests.
 """
 
-import time
 import amulet
+import re
+import time
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -54,13 +55,19 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
 
         u.log.info('Waiting on extended status checks...')
 
-        # NOTE(beisner):  This charm lacks support for juju workload status.
-        # That means that this charm will not affirm a ready state for those
-        # waiting for a ready state through tools like juju-wait, leading to
-        # anticipated race conditions and automation blocking conditions.
-        exclude_services = ['glance-simplestreams-sync']
+        # NOTE(thedac):  This charm has a non-standard workload status.
+        # The default match for ready will fail. Check the other charms
+        # for standard workload status and check this charm for Sync
+        # completed.
 
+        # Check for ready
+        exclude_services = ['glance-simplestreams-sync']
         self._auto_wait_for_status(exclude_services=exclude_services)
+
+        # Check for Sync completed
+        self._auto_wait_for_status(re.compile('Sync completed.*',
+                                              re.IGNORECASE),
+                                              include_only=exclude_services)
 
         self.d.sentry.wait()
         self._initialize_tests()
@@ -230,13 +237,3 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             openstack_release=self._get_openstack_release())
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
-
-    def test_115_memcache(self):
-        u.validate_memcache(self.glance_sentry,
-                            '/etc/glance/glance-api.conf',
-                            self._get_openstack_release(),
-                            earliest_release=self.trusty_mitaka)
-        u.validate_memcache(self.glance_sentry,
-                            '/etc/glance/glance-registry.conf',
-                            self._get_openstack_release(),
-                            earliest_release=self.trusty_mitaka)
