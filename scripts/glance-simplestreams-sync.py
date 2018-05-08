@@ -454,7 +454,6 @@ def main():
     log.info("glance-simplestreams-sync started.")
 
     lockfile = open(SYNC_RUNNING_FLAG_FILE_NAME, 'w')
-    atexit.register(cleanup)
 
     try:
         fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
@@ -462,6 +461,7 @@ def main():
         log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
         sys.exit(0)
 
+    atexit.register(cleanup)
     lockfile.write(str(os.getpid()))
 
     id_conf, charm_conf = get_conf()
