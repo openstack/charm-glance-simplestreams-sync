@@ -1,7 +1,6 @@
-# Notice
+# Known Issues
 
-This charm has been tested with Trusty and Xenial series.  Bionic series
-is enabled, but is still under testing and in development.
+https://bugs.launchpad.net/charm-glance-simplestreams-sync
 
 # Overview
 
@@ -30,9 +29,9 @@ start a sync every minute until a successful sync occurs.
 
 # Requirements
 
-This charm requires a juju relation to Keystone. It also requires a
-running Glance instance, but not a relation - it connects with glance
-via its endpoint as published in Keystone.
+This charm requires a relation to keystone. It also requires a
+running glance instance, but not a direct relation to glance. It
+connects to glance via its endpoint as published in keystone.
 
 # Usage
 
