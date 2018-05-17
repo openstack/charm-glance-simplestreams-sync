@@ -290,51 +290,10 @@ def update_product_streams_service(ksc, services, region):
                     "product-streams endpoint: {}".format(e))
         raise
 
-    for endpoint_type in ['publicURL', 'internalURL']:
-        catalog[endpoint_type] += "/{}".format(SWIFT_DATA_DIR)
-
-    endpoints = [endpoint._info for endpoint in ksc.endpoints.list()
-                 if endpoint._info['region'] == region]
-    ps_services = [s for s in services
-                   if s['name'] == PRODUCT_STREAMS_SERVICE_NAME]
-    if len(ps_services) != 1:
-        log.error("found {} product-streams services. expecting one."
-                  " - not updating endpoint.".format(len(ps_services)))
-        return
-
-    ps_service_id = ps_services[0]['id']
-
-    ps_endpoints = [endpoint for endpoint in endpoints
-                    if endpoint['service_id'] == ps_service_id]
-
-    if len(ps_endpoints) != 1:
-        log.warning("found {} product-streams endpoints in region {},"
-                    " expecting one - not updating"
-                    " endpoint".format(len(ps_endpoints), region))
-        return
-
-    create_args = dict(region=region,
-                       service_id=ps_service_id,
-                       publicurl=catalog['publicURL'],
-                       adminurl=catalog['adminURL'],
-                       internalurl=catalog['internalURL'])
-    ps_endpoint = ps_endpoints[0]
-
-    endpoint_already_exists = all(
-        create_args[key] == ps_endpoint.get(key) for key in create_args)
-
-    if endpoint_already_exists:
-        log.info("Endpoint already set to desired values, moving on.")
-    else:
-        status_set('maintenance', 'Updating product-streams endpoint')
-
-        log.info("Deleting existing product-streams endpoint: ")
-        ksc.endpoints.delete(ps_endpoints[0]['id'])
-        log.info("creating product-streams endpoint: {}".format(create_args))
-        ksc.endpoints.create(**create_args)
-        update_endpoint_urls(region, catalog['publicURL'],
-                             catalog['adminURL'],
-                             catalog['internalURL'])
+    # Update the relation to keystone to update the catalog URLs
+    update_endpoint_urls(region, catalog['publicURL'],
+                         catalog['adminURL'],
+                         catalog['internalURL'])
 
 
 def juju_run_cmd(cmd):
