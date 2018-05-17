@@ -290,6 +290,9 @@ def update_product_streams_service(ksc, services, region):
                     "product-streams endpoint: {}".format(e))
         raise
 
+    for endpoint_type in ['publicURL', 'internalURL']:
+        catalog[endpoint_type] += "/{}".format(SWIFT_DATA_DIR)
+
     # Update the relation to keystone to update the catalog URLs
     update_endpoint_urls(region, catalog['publicURL'],
                          catalog['adminURL'],
