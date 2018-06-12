@@ -67,7 +67,7 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
         # Check for Sync completed
         self._auto_wait_for_status(re.compile('Sync completed.*',
                                               re.IGNORECASE),
-                                              include_only=exclude_services)
+                                   include_only=exclude_services)
 
         self.d.sentry.wait()
         self._initialize_tests()
