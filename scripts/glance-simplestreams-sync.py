@@ -104,6 +104,36 @@ except ImportError:
     SIMPLESTREAMS_HAS_PROGRESS = False
 
 
+class PropertiesGlanceMirror(glance.GlanceMirror):
+    def __init__(self, config, objectstore=None, region=None,
+                 name_prefix=None, progress_callback=None,
+                 client=None):
+        super(PropertiesGlanceMirror, self).__init__(config=config,
+                                                     objectstore=objectstore,
+                                                     region=region,
+                                                     name_prefix=name_prefix)
+        self.custom_properties = config.get('custom_properties')
+
+    def prepare_glance_arguments(self, full_image_name, image_metadata,
+                                 image_md5_hash, image_size, image_properties):
+
+        glance_args = (super(PropertiesGlanceMirror, self)
+                       .prepare_glance_arguments(full_image_name,
+                                                 image_metadata,
+                                                 image_md5_hash,
+                                                 image_size,
+                                                 image_properties))
+
+        if self.custom_properties:
+            log.info('Setting custom image propertis: {}'.format(
+                     self.custom_properties))
+            props = glance_args.get('properties', {})
+            props.update(self.custom_properties)
+            glance_args['properties'] = props
+
+        return glance_args
+
+
 class StatusMessageProgressAggregator(ProgressAggregator):
     def __init__(self, remaining_items, send_status_message):
         super(StatusMessageProgressAggregator, self).__init__(remaining_items)
@@ -250,6 +280,8 @@ def do_sync(charm_conf, status_exchange):
                   'content_id': content_id,
                   'cloud_name': charm_conf['cloud_name'],
                   'item_filters': mirror_info['item_filters'],
+                  'custom_properties': charm_conf.get('custom_properties',
+                                                      False),
                   'hypervisor_mapping': charm_conf.get('hypervisor_mapping',
                                                        False)}
 
@@ -269,7 +301,7 @@ def do_sync(charm_conf, status_exchange):
             log.info("Detected simplestreams version without progress"
                      " update support. Only limited feedback available.")
 
-        tmirror = glance.GlanceMirror(**mirror_args)
+        tmirror = PropertiesGlanceMirror(**mirror_args)
 
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)
