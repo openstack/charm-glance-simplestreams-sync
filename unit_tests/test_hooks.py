@@ -78,6 +78,38 @@ class TestConfigChanged(CharmTestCase):
         update_nrpe_config.assert_called()
 
     @mock.patch.object(hooks, 'update_nrpe_config')
+    @mock.patch('os.symlink')
+    @mock.patch('charmhelpers.core.hookenv.config')
+    @mock.patch('charmhelpers.core.hookenv.relations_of_type')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.get_nagios_hostname')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
+    def test_custom_properties_config(self, local_unit, nrpe_config, nag_host,
+                                      relations_of_type, config, symlink,
+                                      update_nrpe_config):
+        local_unit.return_value = 'juju/0'
+        nag_host.return_value = "nagios_hostname"
+        nrpe_config.return_value = self.test_config
+
+        setattr(self.test_config, "changed", lambda x: False)
+        self.test_config.config["custom_properties"] = {
+            'hypervisor_type': 'kvm',
+            'hw_firmware_type': 'uefi'
+        }
+        config.return_value = self.test_config
+        hooks.config_changed()
+
+        self.assertTrue(os.path.isfile(self.mirrors_conf_fpath))
+        with open(self.mirrors_conf_fpath, 'r') as f:
+            mirrors = yaml.safe_load(f)
+
+        self.assertEqual(
+            self.test_config.config['custom_properties'],
+            mirrors['custom_properties']
+        )
+        update_nrpe_config.assert_called()
+
+    @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.path.exists')
     @mock.patch('os.remove')
     @mock.patch('glob.glob')
