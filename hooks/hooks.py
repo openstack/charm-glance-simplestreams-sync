@@ -26,7 +26,13 @@ from charmhelpers.payload.execd import execd_preinstall
 from charmhelpers.contrib.openstack.context import (AMQPContext,
                                                     IdentityServiceContext,
                                                     OSContextGenerator)
-from charmhelpers.contrib.openstack.utils import get_os_codename_package
+from charmhelpers.contrib.openstack.utils import (
+    get_os_codename_package,
+    clear_unit_paused,
+    clear_unit_upgrading,
+    set_unit_paused,
+    set_unit_upgrading,
+)
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
 from charmhelpers.contrib.charmsupport import nrpe
@@ -288,6 +294,30 @@ def update_nrpe_config():
     hostname = nrpe.get_nagios_hostname()
     nrpe_setup = nrpe.NRPE(hostname=hostname)
     nrpe_setup.write()
+
+
+@hooks.hook('pre-series-upgrade')
+def pre_series_upgrade():
+    hookenv.log("Running prepare series upgrade hook", "INFO")
+    # NOTE: In order to indicate the step of the series upgrade process for
+    # administrators and automated scripts, the charm sets the paused and
+    # upgrading states.
+    set_unit_paused()
+    set_unit_upgrading()
+    hookenv.status_set("blocked",
+                       "Ready for do-release-upgrade and reboot. "
+                       "Set complete when finished.")
+
+
+@hooks.hook('post-series-upgrade')
+def post_series_upgrade():
+    hookenv.log("Running complete series upgrade hook", "INFO")
+    # In order to indicate the step of the series upgrade process for
+    # administrators and automated scripts, the charm clears the paused and
+    # upgrading states.
+    clear_unit_paused()
+    clear_unit_upgrading()
+    hookenv.status_set("active", "")
 
 
 if __name__ == '__main__':

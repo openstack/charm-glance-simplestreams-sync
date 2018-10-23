@@ -48,6 +48,7 @@ INFO = "INFO"
 DEBUG = "DEBUG"
 TRACE = "TRACE"
 MARKER = object()
+SH_MAX_ARG = 131071
 
 cache = {}
 
@@ -98,7 +99,7 @@ def log(message, level=None):
         command += ['-l', level]
     if not isinstance(message, six.string_types):
         message = repr(message)
-    command += [message]
+    command += [message[:SH_MAX_ARG]]
     # Missing juju-log should not cause failures in unit tests
     # Send log output to stderr
     try:
@@ -201,9 +202,33 @@ def remote_unit():
     return os.environ.get('JUJU_REMOTE_UNIT', None)
 
 
-def service_name():
-    """The name service group this unit belongs to"""
+def application_name():
+    """
+    The name of the deployed application this unit belongs to.
+    """
     return local_unit().split('/')[0]
+
+
+def service_name():
+    """
+    .. deprecated:: 0.19.1
+       Alias for :func:`application_name`.
+    """
+    return application_name()
+
+
+def model_name():
+    """
+    Name of the model that this unit is deployed in.
+    """
+    return os.environ['JUJU_MODEL_NAME']
+
+
+def model_uuid():
+    """
+    UUID of the model that this unit is deployed in.
+    """
+    return os.environ['JUJU_MODEL_UUID']
 
 
 def principal_unit():
@@ -483,6 +508,67 @@ def related_units(relid=None):
         units_cmd_line.extend(('-r', relid))
     return json.loads(
         subprocess.check_output(units_cmd_line).decode('UTF-8')) or []
+
+
+def expected_peer_units():
+    """Get a generator for units we expect to join peer relation based on
+    goal-state.
+
+    The local unit is excluded from the result to make it easy to gauge
+    completion of all peers joining the relation with existing hook tools.
+
+    Example usage:
+    log('peer {} of {} joined peer relation'
+        .format(len(related_units()),
+                len(list(expected_peer_units()))))
+
+    This function will raise NotImplementedError if used with juju versions
+    without goal-state support.
+
+    :returns: iterator
+    :rtype: types.GeneratorType
+    :raises: NotImplementedError
+    """
+    if not has_juju_version("2.4.0"):
+        # goal-state first appeared in 2.4.0.
+        raise NotImplementedError("goal-state")
+    _goal_state = goal_state()
+    return (key for key in _goal_state['units']
+            if '/' in key and key != local_unit())
+
+
+def expected_related_units(reltype=None):
+    """Get a generator for units we expect to join relation based on
+    goal-state.
+
+    Note that you can not use this function for the peer relation, take a look
+    at expected_peer_units() for that.
+
+    This function will raise KeyError if you request information for a
+    relation type for which juju goal-state does not have information.  It will
+    raise NotImplementedError if used with juju versions without goal-state
+    support.
+
+    Example usage:
+    log('participant {} of {} joined relation {}'
+        .format(len(related_units()),
+                len(list(expected_related_units())),
+                relation_type()))
+
+    :param reltype: Relation type to list data for, default is to list data for
+                    the realtion type we are currently executing a hook for.
+    :type reltype: str
+    :returns: iterator
+    :rtype: types.GeneratorType
+    :raises: KeyError, NotImplementedError
+    """
+    if not has_juju_version("2.4.4"):
+        # goal-state existed in 2.4.0, but did not list individual units to
+        # join a relation in 2.4.1 through 2.4.3. (LP: #1794739)
+        raise NotImplementedError("goal-state relation unit count")
+    reltype = reltype or relation_type()
+    _goal_state = goal_state()
+    return (key for key in _goal_state['relations'][reltype] if '/' in key)
 
 
 @cached
@@ -973,6 +1059,7 @@ def application_version_set(version):
 
 
 @translate_exc(from_exc=OSError, to_exc=NotImplementedError)
+@cached
 def goal_state():
     """Juju goal state values"""
     cmd = ['goal-state', '--format=json']
@@ -1297,3 +1384,33 @@ def egress_subnets(rid=None, unit=None):
     if 'private-address' in settings:
         return [_to_range(settings['private-address'])]
     return []  # Should never happen
+
+
+def unit_doomed(unit=None):
+    """Determines if the unit is being removed from the model
+
+    Requires Juju 2.4.1.
+
+    :param unit: string unit name, defaults to local_unit
+    :side effect: calls goal_state
+    :side effect: calls local_unit
+    :side effect: calls has_juju_version
+    :return: True if the unit is being removed, already gone, or never existed
+    """
+    if not has_juju_version("2.4.1"):
+        # We cannot risk blindly returning False for 'we don't know',
+        # because that could cause data loss; if call sites don't
+        # need an accurate answer, they likely don't need this helper
+        # at all.
+        # goal-state existed in 2.4.0, but did not handle removals
+        # correctly until 2.4.1.
+        raise NotImplementedError("is_doomed")
+    if unit is None:
+        unit = local_unit()
+    gs = goal_state()
+    units = gs.get('units', {})
+    if unit not in units:
+        return True
+    # I don't think 'dead' units ever show up in the goal-state, but
+    # check anyway in addition to 'dying'.
+    return units[unit]['status'] in ('dying', 'dead')
