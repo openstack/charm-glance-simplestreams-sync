@@ -1,6 +1,6 @@
 name: glance-simplestreams-sync
 summary: Sync data from simplestreams into glance.
-maintainer: OpenStack Charmers <openstack-dev@lists.openstack.org>
+maintainer: OpenStack Charmers <openstack-discuss@lists.openstack.org>
 description: |
   Automatically keep your glance mirror in sync with any (multiple) source(s)
   of simplestreams data.
