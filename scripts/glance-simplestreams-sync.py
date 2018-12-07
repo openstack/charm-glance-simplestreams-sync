@@ -23,6 +23,7 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import base64
 import copy
 import logging
 import os
@@ -86,6 +87,8 @@ PRODUCT_STREAMS_SERVICE_TYPE = 'product-streams'
 PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
 
 CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
+
+CACERT_FILE = os.path.join(CONF_FILE_DIR, 'cacert.pem')
 
 # TODOs:
 #   - allow people to specify their own policy, since they can specify
@@ -178,7 +181,7 @@ def get_conf():
 
 def get_keystone_client(api_version):
     if api_version == 3:
-        ksc = keystone_v3_client.Client(
+        ksc_vars = dict(
             auth_url=os.environ['OS_AUTH_URL'],
             username=os.environ['OS_USERNAME'],
             password=os.environ['OS_PASSWORD'],
@@ -186,13 +189,20 @@ def get_keystone_client(api_version):
             project_domain_name=os.environ['OS_PROJECT_DOMAIN_NAME'],
             project_name=os.environ['OS_PROJECT_NAME'],
             project_id=os.environ['OS_PROJECT_ID'])
+        ksc_class = keystone_v3_client.Client
     else:
-        ksc = keystone_client.Client(username=os.environ['OS_USERNAME'],
-                                     password=os.environ['OS_PASSWORD'],
-                                     tenant_id=os.environ['OS_TENANT_ID'],
-                                     tenant_name=os.environ['OS_TENANT_NAME'],
-                                     auth_url=os.environ['OS_AUTH_URL'])
-    return ksc
+        ksc_vars = dict(
+            username=os.environ['OS_USERNAME'],
+            password=os.environ['OS_PASSWORD'],
+            tenant_id=os.environ['OS_TENANT_ID'],
+            tenant_name=os.environ['OS_TENANT_NAME'],
+            auth_url=os.environ['OS_AUTH_URL'])
+        ksc_class = keystone_client.Client
+    os_cacert = os.environ.get('OS_CACERT', None)
+    if (os.environ['OS_AUTH_URL'].startswith('https') and
+            os_cacert is not None):
+        ksc_vars['cacert'] = os_cacert
+    return ksc_class(**ksc_vars)
 
 
 def set_openstack_env(id_conf, charm_conf):
@@ -206,6 +216,11 @@ def set_openstack_env(id_conf, charm_conf):
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_REGION_NAME'] = charm_conf['region']
+    ssl_ca = id_conf.get('ssl_ca', None)
+    if id_conf['service_protocol'] == 'https' and ssl_ca is not None:
+        os.environ['OS_CACERT'] = CACERT_FILE
+        with open(CACERT_FILE, "w") as f:
+            f.write(base64.b64decode(ssl_ca))
     if version == 'v3':
         # Keystone charm puts all service users in the default domain.
         # Even so, it would be better if keystone passed this information

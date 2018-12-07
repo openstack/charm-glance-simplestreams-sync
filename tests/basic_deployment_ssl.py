@@ -18,9 +18,10 @@
 Basic glance-simplestreams-sync functional tests.
 """
 
-import amulet
+import base64
+import os
 import re
-import time
+import tempfile
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
     OpenStackAmuletDeployment
@@ -31,6 +32,8 @@ from charmhelpers.contrib.openstack.amulet.utils import (
     DEBUG,
     # ERROR
 )
+
+import generate_certs
 
 # Use DEBUG to turn on debug logging
 u = OpenStackAmuletUtils(DEBUG)
@@ -64,13 +67,12 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
         exclude_services = ['glance-simplestreams-sync']
         self._auto_wait_for_status(exclude_services=exclude_services)
 
-        # Check for Sync completed
+        # Check for Sync completed; if SSL is okay, this should work
         self._auto_wait_for_status(re.compile('Sync completed.*',
                                               re.IGNORECASE),
                                    include_only=exclude_services)
 
         self.d.sentry.wait()
-        self._initialize_tests()
 
     def _assert_services(self, should_run):
         u.get_unit_process_ids(
@@ -114,15 +116,30 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
 
     def _configure_services(self):
         """Configure all of the services."""
+        _path = tempfile.gettempdir()
+        generate_certs.generate_certs(_path)
+
+        _cacert = self.load_base64(_path, 'cacert.pem')
+        _cert = self.load_base64(_path, 'cert.pem')
+        _key = self.load_base64(_path, 'cert.key')
+
         gss_config = {
             # https://bugs.launchpad.net/bugs/1686437
             'source': 'ppa:simplestreams-dev/trunk',
             'use_swift': 'False',
+            'ssl_ca': _cacert,
         }
-        glance_config = {}
+        glance_config = {
+            'ssl_ca': _cacert,
+            'ssl_cert': _cert,
+            'ssl_key': _key,
+        }
         keystone_config = {
             'admin-password': 'openstack',
             'admin-token': 'ubuntutesting',
+            'ssl_ca': _cacert,
+            'ssl_cert': _cert,
+            'ssl_key': _key,
         }
         pxc_config = {
             'dataset-size': '25%',
@@ -130,110 +147,19 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             'root-password': 'ChangeMe123',
             'sst-password': 'ChangeMe123',
         }
+        rabbitmq_server_config = {
+            'ssl': 'on',
+        }
         configs = {
             'glance-simplestreams-sync': gss_config,
             'glance': glance_config,
             'keystone': keystone_config,
             'percona-cluster': pxc_config,
+            'rabbitmq-server': rabbitmq_server_config,
         }
         super(GlanceBasicDeployment, self)._configure_services(configs)
 
-    def _initialize_tests(self):
-        """Perform final initialization before tests get run."""
-        # Access the sentries for inspecting service units
-        self.gss_sentry = self.d.sentry['glance-simplestreams-sync'][0]
-        self.pxc_sentry = self.d.sentry['percona-cluster'][0]
-        self.glance_sentry = self.d.sentry['glance'][0]
-        self.keystone_sentry = self.d.sentry['keystone'][0]
-        self.rabbitmq_sentry = self.d.sentry['rabbitmq-server'][0]
-        u.log.debug('openstack release val: {}'.format(
-            self._get_openstack_release()))
-        u.log.debug('openstack release str: {}'.format(
-            self._get_openstack_release_string()))
-
-        # Authenticate admin with keystone
-        self.keystone_session, self.keystone = u.get_default_keystone_session(
-            self.keystone_sentry,
-            openstack_release=self._get_openstack_release())
-
-        # Authenticate admin with glance endpoint
-        self.glance = u.authenticate_glance_admin(self.keystone)
-
-    def test_001_wait_for_image_sync(self):
-        """Wait for images to be synced. Expect at least one."""
-
-        max_image_wait = 600
-        retry_sleep = 2
-        images = []
-
-        time_start = time.time()
-        while not images:
-            images = [image.name for image in self.glance.images.list()]
-            u.log.debug('Images: {}'.format(images))
-            if images:
-                break
-
-            time_now = time.time()
-            if time_now - time_start >= max_image_wait:
-                raise Exception('Images not synced within '
-                                '{}s'.format(time_now - time_start))
-            else:
-                u.log.debug('Waiting {}s'.format(retry_sleep))
-                time.sleep(retry_sleep)
-                retry_sleep = retry_sleep + 4 if retry_sleep < 30 else 30
-
-    def test_050_gss_permissions_regression_check_lp1611987(self):
-        """Assert the intended file permissions on gss config files
-           https://bugs.launchpad.net/bugs/1611987"""
-
-        perm_check = [
-            {
-                'file_path': '/etc/glance-simplestreams-sync/identity.yaml',
-                'expected_perms': '640',
-                'unit_sentry': self.gss_sentry
-            },
-            {
-                'file_path': '/etc/glance-simplestreams-sync/mirrors.yaml',
-                'expected_perms': '640',
-                'unit_sentry': self.gss_sentry
-            },
-            {
-                'file_path': '/var/log/glance-simplestreams-sync.log',
-                'expected_perms': '640',
-                'unit_sentry': self.gss_sentry
-            },
-        ]
-
-        for _check in perm_check:
-            cmd = 'stat -c %a {}'.format(_check['file_path'])
-            output, _ = u.run_cmd_unit(_check['unit_sentry'], cmd)
-
-            assert output == _check['expected_perms'], \
-                '{} perms not as expected'.format(_check['file_path'])
-
-            u.log.debug('Permissions on {}: {}'.format(
-                _check['file_path'], output))
-
-    def test_102_service_catalog(self):
-        """Verify that the service catalog endpoint data is valid."""
-        u.log.debug('Checking keystone service catalog...')
-        endpoint_check = {
-            'adminURL': u.valid_url,
-            'id': u.not_null,
-            'region': 'RegionOne',
-            'publicURL': u.valid_url,
-            'internalURL': u.valid_url
-        }
-        expected = {
-            'product-streams': [endpoint_check],
-            'image': [endpoint_check],
-            'identity': [endpoint_check]
-        }
-        actual = self.keystone.service_catalog.get_endpoints()
-
-        ret = u.validate_svc_catalog_endpoint_data(
-            expected,
-            actual,
-            openstack_release=self._get_openstack_release())
-        if ret:
-            amulet.raise_status(amulet.FAIL, msg=ret)
+    @staticmethod
+    def load_base64(*path):
+        with open(os.path.join(*path)) as f:
+            return base64.b64encode(f.read())
