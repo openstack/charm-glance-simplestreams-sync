@@ -68,6 +68,20 @@ class UnitNameContext(OSContextGenerator):
         return {'unit_name': hookenv.local_unit()}
 
 
+class SSLIdentityServiceContext(IdentityServiceContext):
+    """Modify the IdentityServiceContext to includea an SSL option.
+
+    This is just a simple way of getting the CA to the
+    glance-simplestreams-sync.py script.
+    """
+    def __call__(self):
+        ctxt = super(SSLIdentityServiceContext, self).__call__()
+        ssl_ca = hookenv.config('ssl_ca')
+        if ctxt and ssl_ca:
+            ctxt['ssl_ca'] = ssl_ca
+        return ctxt
+
+
 class MirrorsConfigServiceContext(OSContextGenerator):
     """Context for mirrors.yaml template.
 
@@ -130,7 +144,7 @@ def get_configs():
                                openstack_release=get_release())
 
     configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
-    configs.register(ID_CONF_FILE_NAME, [IdentityServiceContext(),
+    configs.register(ID_CONF_FILE_NAME, [SSLIdentityServiceContext(),
                                          AMQPContext(),
                                          UnitNameContext()])
     return configs

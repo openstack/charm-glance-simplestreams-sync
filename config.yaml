@@ -68,6 +68,12 @@ options:
     default: openstack
     type: string
     description: RabbitMQ virtual host to request access on rabbitmq-server.
+  ssl_ca:
+    type: string
+    default:
+    description: |
+      base64-encoded SSL CA to use to verify certificates from keystone and
+      glance if using SSL on the services.
   nagios_context:
     default: "juju"
     type: string

@@ -16,7 +16,7 @@
 
 """Amulet tests on a basic glance deployment on xenial-pike."""
 
-from basic_deployment import GlanceBasicDeployment
+from basic_deployment_ssl import GlanceBasicDeployment
 
 if __name__ == '__main__':
     deployment = GlanceBasicDeployment(series='xenial',

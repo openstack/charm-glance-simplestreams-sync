@@ -76,3 +76,9 @@ Simplestreams. It defaults to settings for downloading images from
 cloud-images.ubuntu.com, and is not yet tested with other mirror
 locations. If you have set up your own Simplestreams mirror, you
 should be able to set the necessary configuration values.
+
+## `ssl_ca`
+
+This is used, optionally, to verify the certificates when in ssl mode for
+keystone and glance.  This should be provided as a base64 encoded PEM
+certificate.
