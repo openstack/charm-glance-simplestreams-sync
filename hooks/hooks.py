@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2018 Canonical Ltd
 #
@@ -16,8 +16,20 @@
 
 import glob
 import os
-import sys
 import shutil
+import sys
+
+
+_path = os.path.dirname(os.path.realpath(__file__))
+_root = os.path.abspath(os.path.join(_path, '..'))
+
+
+def _add_path(path):
+    if path not in sys.path:
+        sys.path.insert(1, path)
+
+
+_add_path(_root)
 
 from charmhelpers.fetch import add_source, apt_install, apt_update
 from charmhelpers.core import hookenv
