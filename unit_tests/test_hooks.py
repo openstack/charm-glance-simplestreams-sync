@@ -43,12 +43,11 @@ class TestConfigChanged(CharmTestCase):
 
     @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.symlink')
-    @mock.patch('hooks.charmhelpers.core.hookenv.config')
-    @mock.patch('hooks.charmhelpers.core.hookenv.relations_of_type')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe'
-                '.get_nagios_hostname')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.config')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.local_unit')
+    @mock.patch('charmhelpers.core.hookenv.config')
+    @mock.patch('charmhelpers.core.hookenv.relations_of_type')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.get_nagios_hostname')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
     def test_default_config(self, local_unit, nrpe_config, nag_host,
                             relations_of_type, config, symlink,
                             update_nrpe_config):
@@ -82,12 +81,11 @@ class TestConfigChanged(CharmTestCase):
     @mock.patch('os.path.exists')
     @mock.patch('os.remove')
     @mock.patch('glob.glob')
-    @mock.patch('hooks.charmhelpers.core.hookenv.config')
-    @mock.patch('hooks.charmhelpers.core.hookenv.relations_of_type')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe'
-                '.get_nagios_hostname')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.config')
-    @mock.patch('hooks.charmhelpers.contrib.charmsupport.nrpe.local_unit')
+    @mock.patch('charmhelpers.core.hookenv.config')
+    @mock.patch('charmhelpers.core.hookenv.relations_of_type')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.get_nagios_hostname')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
     def test_uninstall_cron(self, local_unit, nrpe_config, nag_host,
                             relations_of_type, config, glob, remove, exists,
                             update_nrpe_config):
