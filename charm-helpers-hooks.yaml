@@ -8,6 +8,6 @@ include:
     - contrib.openstack|inc=*
     - contrib.charmsupport
     - contrib.network.ip
-    - contrib.python.packages
+    - contrib.python
     - contrib.hahelpers
     - contrib.storage
