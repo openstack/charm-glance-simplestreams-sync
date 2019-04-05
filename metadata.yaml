@@ -12,6 +12,7 @@ series:
   - xenial
   - bionic
   - cosmic
+  - disco
 subordinate: false
 provides:
   simplestreams-image-service:
