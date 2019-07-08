@@ -11,7 +11,8 @@ admin_tenant_name:  {{ admin_tenant_name }}
 admin_user: {{ admin_user }}
 admin_password: {{ admin_password }}
 {% if ssl_ca -%}
-ssl_ca: {{ ssl_ca }}
+ssl_ca: |
+{{ ssl_ca | indent( width=2, indentfirst=True) }}
 {% endif -%}
 
 {% if api_version == '3' -%}
@@ -36,7 +37,8 @@ rabbit_host: {{ rabbitmq_host }}
 rabbit_use_ssl: True
 rabbit_port: {{ rabbit_ssl_port }}
 {% if rabbit_ssl_ca -%}
-kombu_ssl_ca_certs: {{ rabbit_ssl_ca }}
+kombu_ssl_ca_certs: |
+{{ rabbit_ssl_ca | indent( width=2, indentfirst=True)  }}
 {% endif -%}
 {% endif -%}
 {% endif -%}
