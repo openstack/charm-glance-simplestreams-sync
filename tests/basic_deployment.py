@@ -86,7 +86,7 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
            """
         this_service = {'name': 'glance-simplestreams-sync'}
         other_services = [
-            {'name': 'percona-cluster', 'constraints': {'mem': '3072M'}},
+            self.get_percona_service_entry(),
             {'name': 'glance'},
             {'name': 'rabbitmq-server'},
             {'name': 'keystone'},
