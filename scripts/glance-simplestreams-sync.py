@@ -195,16 +195,14 @@ def get_conf():
             log.info("{} does not exist, exiting.".format(conf_file_name))
             sys.exit(1)
 
-    id_conf = read_conf(ID_CONF_FILE_NAME)
-    if None in id_conf.values():
-        log.info("Configuration value missing in {}:\n"
-                 "{}".format(ID_CONF_FILE_NAME, redact_keys(id_conf)))
-        sys.exit(1)
-    charm_conf = read_conf(CHARM_CONF_FILE_NAME)
-    if None in charm_conf.values():
-        log.info("Configuration value missing in {}:\n"
-                 "{}".format(CHARM_CONF_FILE_NAME, redact_keys(charm_conf)))
-        sys.exit(1)
+    try:
+        id_conf = read_conf(ID_CONF_FILE_NAME)
+    except:
+        id_conf = False
+    try:
+        charm_conf = read_conf(CHARM_CONF_FILE_NAME)
+    except:
+        charm_conf = False
 
     return id_conf, charm_conf
 
@@ -474,6 +472,29 @@ def main():
     lockfile.write(str(os.getpid()))
 
     id_conf, charm_conf = get_conf()
+
+    if not id_conf:
+        msg = ("Error in {} configuration file. "
+               "Check juju config values for errors").format(ID_CONF_FILE_NAME)
+        status_set('blocked', msg)
+        log.info(msg)
+        sys.exit(1)
+
+    if not charm_conf:
+        msg = ("Error in {} configuration file. "
+               "Check juju config values for errors").format(ID_CONF_FILE_NAME)
+        status_set('blocked', msg)
+        log.info(msg)
+        sys.exit(1)
+
+    if None in id_conf.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(ID_CONF_FILE_NAME, redact_keys(id_conf)))
+        sys.exit(1)
+    if None in charm_conf.values():
+        log.info("Configuration value missing in {}:\n"
+                 "{}".format(CHARM_CONF_FILE_NAME, redact_keys(charm_conf)))
+        sys.exit(1)
 
     set_openstack_env(id_conf, charm_conf)
 
