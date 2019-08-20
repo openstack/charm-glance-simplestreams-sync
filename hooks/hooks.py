@@ -65,6 +65,11 @@ CRON_POLL_FILEPATH = os.path.join(CRON_D, CRON_POLL_FILENAME)
 
 ERR_FILE_EXISTS = 17
 
+PACKAGES = ['python-simplestreams', 'python-glanceclient',
+            'python-yaml', 'python-keystoneclient',
+            'python-kombu',
+            'python-swiftclient', 'ubuntu-cloudimage-keyring']
+
 hooks = hookenv.Hooks()
 
 
@@ -248,12 +253,14 @@ def install():
                 return
             os.mkdir(directory)
 
+    _packages = PACKAGES
+    if not hookenv.config("use_swift"):
+        hookenv.log('Configuring for local hosting of product stream.')
+        _packages += ["apache2"]
+
     apt_update(fatal=True)
 
-    apt_install(packages=['python-simplestreams', 'python-glanceclient',
-                          'python-yaml', 'python-keystoneclient',
-                          'python-kombu',
-                          'python-swiftclient', 'ubuntu-cloudimage-keyring'])
+    apt_install(_packages)
 
     hookenv.log('end install hook.')
 

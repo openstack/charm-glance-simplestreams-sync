@@ -61,6 +61,7 @@ import keystoneclient.exceptions as keystone_exceptions
 import kombu
 from simplestreams.mirrors import glance, UrlMirrorReader
 from simplestreams.objectstores.swift import SwiftObjectStore
+from simplestreams.objectstores import FileStore
 from simplestreams.util import read_signed, path_from_mirror_url
 import sys
 import time
@@ -81,6 +82,9 @@ SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(PID_FILE_DIR,
 # images to deploy, so this path isn't really configurable even though
 # it is.
 SWIFT_DATA_DIR = 'simplestreams/data/'
+
+# When running local apache for product-streams use path to place indexes.
+APACHE_DATA_DIR = '/var/www/html'
 
 PRODUCT_STREAMS_SERVICE_NAME = 'image-stream'
 PRODUCT_STREAMS_SERVICE_TYPE = 'product-streams'
@@ -254,7 +258,8 @@ def do_sync(charm_conf, status_exchange):
         if charm_conf['use_swift']:
             store = SwiftObjectStore(SWIFT_DATA_DIR)
         else:
-            store = None
+            # Use the local apache server to serve product streams
+            store = FileStore(prefix=APACHE_DATA_DIR)
 
         content_id = charm_conf['content_id_template'].format(
             region=charm_conf['region'])

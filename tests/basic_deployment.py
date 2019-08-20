@@ -19,7 +19,9 @@ Basic glance-simplestreams-sync functional tests.
 """
 
 import amulet
+import json
 import re
+import requests
 import time
 
 from charmhelpers.contrib.openstack.amulet.deployment import (
@@ -159,7 +161,7 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
         # Authenticate admin with glance endpoint
         self.glance = u.authenticate_glance_admin(self.keystone)
 
-    def test_001_wait_for_image_sync(self):
+    def test_010_wait_for_image_sync(self):
         """Wait for images to be synced. Expect at least one."""
 
         max_image_wait = 600
@@ -237,3 +239,25 @@ class GlanceBasicDeployment(OpenStackAmuletDeployment):
             openstack_release=self._get_openstack_release())
         if ret:
             amulet.raise_status(amulet.FAIL, msg=ret)
+
+    def test_110_local_product_stream(self):
+        """Verify that the local product stream is accessible and has data"""
+        u.log.debug('Checking local product streams...')
+        _expected = ['com.ubuntu.cloud:server:14.04:amd64',
+                     'com.ubuntu.cloud:server:16.04:amd64',
+                     'com.ubuntu.cloud:server:18.04:amd64']
+        _uri = "streams/v1/auto.sync.json"
+        _key = "url"
+        if self._get_openstack_release() <= self.xenial_pike:
+            _key = "publicURL"
+
+        _catalog = self.keystone.service_catalog.get_endpoints()
+        _ps_interface = _catalog["product-streams"][0][_key]
+        _url = "{}/{}".format(_ps_interface, _uri)
+        _client = requests.session()
+        _json_data = _client.get(_url).text
+        _product_streams = json.loads(_json_data)
+
+        for image in _expected:
+            assert image in _product_streams["products"].keys()
+        u.log.debug("Local product stream successful")
