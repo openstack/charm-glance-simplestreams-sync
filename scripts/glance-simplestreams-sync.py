@@ -93,6 +93,7 @@ PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
 CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 
 CACERT_FILE = os.path.join(CONF_FILE_DIR, 'cacert.pem')
+SYSTEM_CACERT_FILE = '/etc/ssl/certs/ca-certificates.crt'
 
 # TODOs:
 #   - allow people to specify their own policy, since they can specify
@@ -396,7 +397,26 @@ class StatusExchange:
                                               host,
                                               id_conf['rabbit_virtual_host'])
 
-            self.conn = kombu.BrokerConnection(url)
+            ssl = None
+            if 'rabbit_use_ssl' in id_conf:
+                if 'ssl_ca' in id_conf:
+                    cacert = CACERT_FILE
+                else:
+                    cacert = SYSTEM_CACERT_FILE
+                    try:
+                        os.makedirs('/usr/local/share/ca-certificates')
+                    except os.error:
+                        # ignore existence of already created directory
+                        pass
+                    with open('/usr/local/share/ca-certificates/'
+                              'glance-simplestreams-sync.crt', 'w') as f:
+                        f.write(
+                            base64.b64decode(id_conf['kombu_ssl_ca_certs']))
+                    subprocess.check_call(
+                        ['/usr/sbin/update-ca-certificates', '--fresh'])
+                ssl = {'ca_certs': cacert}
+
+            self.conn = kombu.BrokerConnection(url, ssl=ssl)
             self.exchange = kombu.Exchange("glance-simplestreams-sync-status")
             status_queue = kombu.Queue("glance-simplestreams-sync-status",
                                        exchange=self.exchange)
