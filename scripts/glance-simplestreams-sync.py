@@ -392,10 +392,12 @@ class StatusExchange:
             return False
 
         try:
-            url = "amqp://{}:{}@{}/{}".format(id_conf['rabbit_userid'],
-                                              id_conf['rabbit_password'],
-                                              host,
-                                              id_conf['rabbit_virtual_host'])
+            # amqp:// implies librabbitmq if available, otherwise pyamqp
+            # librabbitmq doesn't support SSL
+            # use pyamqp:// explicitly for SSL
+            url = "pyamqp://{}:{}@{}/{}".format(
+                id_conf['rabbit_userid'], id_conf['rabbit_password'],
+                host, id_conf['rabbit_virtual_host'])
 
             ssl = None
             if 'rabbit_use_ssl' in id_conf:
@@ -503,7 +505,9 @@ def main():
                                       "message": "Sync starting."})
         do_sync(charm_conf, status_exchange)
         ts = time.strftime("%x %X")
-        completed_msg = "Sync completed at {}".format(ts)
+        # "Unit is ready" is one of approved message prefixes
+        # Prefix the message with it will help zaza to understand the status.
+        completed_msg = "Unit is ready. Sync completed at {}".format(ts)
         status_exchange.send_message({"status": "Done",
                                       "message": completed_msg})
         status_set('active', completed_msg)

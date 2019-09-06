@@ -28,3 +28,5 @@ requires:
     interface: keystone
   amqp:
     interface: rabbitmq
+  certificates:
+    interface: tls-certificates

@@ -45,9 +45,15 @@ from charmhelpers.contrib.openstack.utils import (
     set_unit_paused,
     set_unit_upgrading,
 )
+
 from charmhelpers.contrib.openstack.templating import OSConfigRenderer
 
 from charmhelpers.contrib.charmsupport import nrpe
+
+from charmhelpers.contrib.openstack.cert_utils import (
+    get_certificate_request,
+    process_certificates,
+)
 
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
 USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
@@ -351,6 +357,21 @@ def post_series_upgrade():
     clear_unit_paused()
     clear_unit_upgrading()
     hookenv.status_set("active", "")
+
+
+@hooks.hook('certificates-relation-joined')
+def certs_joined(relation_id=None):
+    hookenv.relation_set(
+        relation_id=relation_id,
+        relation_settings=get_certificate_request())
+
+
+@hooks.hook('certificates-relation-changed')
+def certs_changed(relation_id=None, unit=None):
+    process_certificates('glance-simplestreams-sync', relation_id, unit)
+    configs = get_configs()
+    configs.write_all()
+    identity_service_changed()
 
 
 if __name__ == '__main__':

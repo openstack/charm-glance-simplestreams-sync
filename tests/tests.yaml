@@ -1,18 +1,47 @@
-# Bootstrap the model if necessary.
-bootstrap: True
-# Re-use bootstrap node.
-reset: True
-# Use tox/requirements to drive the venv instead of bundletester's venv feature.
-virtualenv: False
-# Leave makefile empty, otherwise unit/lint tests will rerun ahead of amulet.
-makefile: []
-# Do not specify juju PPA sources.  Juju is presumed to be pre-installed
-# and configured in all test runner environments.
-#sources:
-# Do not specify or rely on system packages.
-#packages:
-# Do not specify python packages here.  Use test-requirements.txt
-# and tox instead.  ie. The venv is constructed before bundletester
-# is invoked.
-#python-packages:
-reset_timeout: 600
+charm_name: glance-simplestreams-sync
+
+comment:
+  - 'the glance configure job validates operation of identity-service relation'
+
+# functest-run-suite ...
+# functest-deploy --bundle /path/to/gate/bundle
+gate_bundles:
+  - model_alias_trusty: trusty-mitaka
+  - xenial-mitaka
+  - xenial-ocata
+  - xenial-pike
+  - xenial-queens
+  - bionic-queens
+  - bionic-rocky
+  - bionic-stein
+  - disco-stein
+
+# functest-run-suite --smoke ...
+# functest-deploy --bundle /path/to/smoke/bundle
+# smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
+smoke_bundles:
+  - bionic-stein
+
+# functest-run-suite --dev ...
+# functest-deploy --bundle /path/to/dev/bundle
+# smoke bundle should be (Ubuntu LTS latest)-(OpenStack development)
+dev_bundles:
+  - bionic-train
+
+# special target deploy status for above deploy phase
+target_deploy_status:
+  vault:
+    # vault will be blocked with functest-deploy, this is ok to move on
+    # functest-configure will fix it with `auto_initialize` in next phase
+    workload-status: blocked
+    workload-status-message: Vault needs to be initialized
+
+# functest-configure
+configure:
+  - zaza.openstack.charm_tests.vault.setup.auto_initialize
+  # skip vault init for trusty since vault doesn't suport trusty
+  - model_alias_trusty: []
+
+# functest-test
+tests:
+  - zaza.openstack.charm_tests.glance_simplestreams_sync.tests.GlanceSimpleStreamsSyncTest
