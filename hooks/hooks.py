@@ -181,7 +181,7 @@ def install_cron_script():
 
     """
     for fn in [SYNC_SCRIPT_NAME, SCRIPT_WRAPPER_NAME]:
-        shutil.copy(os.path.join("scripts", fn), USR_SHARE_DIR)
+        shutil.copy(os.path.join("files", fn), USR_SHARE_DIR)
 
     config = hookenv.config()
     installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_WRAPPER_NAME)
@@ -201,7 +201,7 @@ def install_cron_script():
 
 def install_cron_poll():
     "Installs /etc/cron.d every-minute job in crontab for quick polling."
-    poll_file_source = os.path.join('scripts', CRON_POLL_FILENAME)
+    poll_file_source = os.path.join("files", CRON_POLL_FILENAME)
     shutil.copy(poll_file_source, CRON_D)
 
 
