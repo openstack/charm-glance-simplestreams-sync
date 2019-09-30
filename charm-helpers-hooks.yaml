@@ -11,3 +11,4 @@ include:
     - contrib.python
     - contrib.hahelpers
     - contrib.storage
+    - contrib.openstack.policyd
