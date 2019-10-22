@@ -14,13 +14,14 @@ gate_bundles:
   - bionic-queens
   - bionic-rocky
   - bionic-stein
+  - bionic-train
   - disco-stein
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle
 # smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
 smoke_bundles:
-  - bionic-stein
+  - bionic-train
 
 # functest-run-suite --dev ...
 # functest-deploy --bundle /path/to/dev/bundle
