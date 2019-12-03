@@ -112,6 +112,27 @@ except ImportError:
     SIMPLESTREAMS_HAS_PROGRESS = False
 
 
+class GlanceMirrorWithCustomProperties(glance.GlanceMirror):
+    def __init__(self, *args, **kwargs):
+        custom_properties = kwargs.pop('custom_properties', {})
+        super(GlanceMirrorWithCustomProperties, self).__init__(*args, **kwargs)
+        self.custom_properties = custom_properties
+
+    def prepare_glance_arguments(self, *args, **kwargs):
+
+        glance_args = (super(GlanceMirrorWithCustomProperties, self)
+                       .prepare_glance_arguments(*args, **kwargs))
+
+        if self.custom_properties:
+            log.info('Setting custom image properties: {}'.format(
+                     self.custom_properties))
+            props = glance_args.get('properties', {})
+            props.update(self.custom_properties)
+            glance_args['properties'] = props
+
+        return glance_args
+
+
 class StatusMessageProgressAggregator(ProgressAggregator):
     def __init__(self, remaining_items, send_status_message):
         super(StatusMessageProgressAggregator, self).__init__(remaining_items)
@@ -170,12 +191,30 @@ def get_conf():
             log.info("{} does not exist, exiting.".format(conf_file_name))
             sys.exit(1)
 
-    id_conf = read_conf(ID_CONF_FILE_NAME)
+    try:
+        id_conf = read_conf(ID_CONF_FILE_NAME)
+    except Exception as e:
+        msg = ("Error in {} configuration file."
+               "Check juju config values for errors."
+               "Exception: {}").format(ID_CONF_FILE_NAME, e)
+        status_set('blocked', msg)
+        log.info(msg)
+        sys.exit(1)
     if None in id_conf.values():
         log.info("Configuration value missing in {}:\n"
                  "{}".format(ID_CONF_FILE_NAME, redact_keys(id_conf)))
         sys.exit(1)
-    charm_conf = read_conf(CHARM_CONF_FILE_NAME)
+
+    try:
+        charm_conf = read_conf(CHARM_CONF_FILE_NAME)
+    except Exception as e:
+        charm_conf = {}
+        msg = ("Error in {} configuration file. "
+               "Check juju config values for errors"
+               "Exception: {}").format(ID_CONF_FILE_NAME, e)
+        status_set('blocked', msg)
+        log.info(msg)
+        sys.exit(1)
     if None in charm_conf.values():
         log.info("Configuration value missing in {}:\n"
                  "{}".format(CHARM_CONF_FILE_NAME, redact_keys(charm_conf)))
@@ -234,6 +273,11 @@ def set_openstack_env(id_conf, charm_conf):
         os.environ['OS_PROJECT_ID'] = id_conf['admin_tenant_id']
         os.environ['OS_PROJECT_NAME'] = id_conf['admin_tenant_name']
         os.environ['OS_PROJECT_DOMAIN_NAME'] = id_conf['admin_domain_name']
+        if 'cacert' in id_conf.keys():
+            os.environ['OS_CACERT'] = id_conf['cacert']
+        if 'interface' in id_conf.keys():
+            os.environ['OS_INTERFACE'] = id_conf['interface']
+            os.environ['OS_ENDPOINT_TYPE'] = id_conf['interface']
     else:
         os.environ['OS_TENANT_ID'] = id_conf['admin_tenant_id']
         os.environ['OS_TENANT_NAME'] = id_conf['admin_tenant_name']
@@ -276,6 +320,8 @@ def do_sync(charm_conf, status_exchange):
 
         mirror_args = dict(config=config, objectstore=store,
                            name_prefix=charm_conf['name_prefix'])
+        mirror_args['custom_properties'] = charm_conf.get('custom_properties',
+                                                          False)
 
         if SIMPLESTREAMS_HAS_PROGRESS:
             log.info("Calling DryRun mirror to get item list")
@@ -290,7 +336,7 @@ def do_sync(charm_conf, status_exchange):
             log.info("Detected simplestreams version without progress"
                      " update support. Only limited feedback available.")
 
-        tmirror = glance.GlanceMirror(**mirror_args)
+        tmirror = GlanceMirrorWithCustomProperties(**mirror_args)
 
         log.info("calling GlanceMirror.sync")
         tmirror.sync(smirror, path=initial_path)

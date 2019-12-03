@@ -39,6 +39,12 @@ options:
     type: string
     default: "auto-sync/"
     description: "This is prefixed to the object name when uploading to glance."
+  custom_properties:
+    type: string
+    default: ""
+    description: >
+      YAML-formatted list of any custom properties to be set in glance
+      for the synced image, e.g. architecture, hypervisor_type.
   content_id_template:
     type: string
     default: "auto.sync"
