@@ -55,6 +55,11 @@ from charmhelpers.contrib.openstack.cert_utils import (
     process_certificates,
 )
 
+from charmhelpers.core.host import (
+    CompareHostReleases,
+    lsb_release,
+)
+
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
 USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
 
@@ -75,6 +80,11 @@ PACKAGES = ['python-simplestreams', 'python-glanceclient',
             'python-yaml', 'python-keystoneclient',
             'python-kombu',
             'python-swiftclient', 'ubuntu-cloudimage-keyring']
+
+PY3_PACKAGES = ['python3-simplestreams', 'python3-glanceclient',
+                'python3-yaml', 'python3-keystoneclient',
+                'python3-kombu',
+                'python3-swiftclient']
 
 hooks = hookenv.Hooks()
 
@@ -264,6 +274,10 @@ def install():
     if not hookenv.config("use_swift"):
         hookenv.log('Configuring for local hosting of product stream.')
         _packages += ["apache2"]
+
+    if CompareHostReleases(lsb_release()['DISTRIB_CODENAME']) >= 'disco':
+        _packages = [pkg for pkg in _packages if not pkg.startswith('python-')]
+        _packages.extend(PY3_PACKAGES)
 
     apt_update(fatal=True)
 

@@ -263,7 +263,7 @@ def set_openstack_env(id_conf, charm_conf):
     ssl_ca = id_conf.get('ssl_ca', None)
     if id_conf['service_protocol'] == 'https' and ssl_ca is not None:
         os.environ['OS_CACERT'] = CACERT_FILE
-        with open(CACERT_FILE, "w") as f:
+        with open(CACERT_FILE, "wb") as f:
             f.write(base64.b64decode(ssl_ca))
     if version == 'v3':
         # Keystone charm puts all service users in the default domain.
@@ -457,7 +457,7 @@ class StatusExchange:
                         # ignore existence of already created directory
                         pass
                     with open('/usr/local/share/ca-certificates/'
-                              'glance-simplestreams-sync.crt', 'w') as f:
+                              'glance-simplestreams-sync.crt', 'wb') as f:
                         f.write(
                             base64.b64decode(id_conf['kombu_ssl_ca_certs']))
                     subprocess.check_call(

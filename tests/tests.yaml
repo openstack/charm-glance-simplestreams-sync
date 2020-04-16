@@ -15,6 +15,11 @@ gate_bundles:
   - bionic-rocky
   - bionic-stein
   - bionic-train
+  - focal-ussuri
+
+tests_options:
+  force_deploy:
+   - focal-ussuri
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle
@@ -26,7 +31,7 @@ smoke_bundles:
 # functest-deploy --bundle /path/to/dev/bundle
 # smoke bundle should be (Ubuntu LTS latest)-(OpenStack development)
 dev_bundles:
-  - bionic-train
+  - focal-ussuri
 
 # special target deploy status for above deploy phase
 target_deploy_status:
@@ -35,6 +40,11 @@ target_deploy_status:
     # functest-configure will fix it with `auto_initialize` in next phase
     workload-status: blocked
     workload-status-message: Vault needs to be initialized
+  glance-simplestreams-sync:
+    # gss will be blocked since glance and rabbitmq don't have their
+    # certificates yet. This should be fixed after vault initialization
+    workload-status: blocked
+    workload-status-message: Image sync failed, retrying soon.
 
 # functest-configure
 configure:
