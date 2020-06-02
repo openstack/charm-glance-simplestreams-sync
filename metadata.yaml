@@ -5,13 +5,14 @@ description: |
   Automatically keep your glance mirror in sync with any (multiple) source(s)
   of simplestreams data.
 tags:
-  - misc
-  - openstack
+- misc
+- openstack
 series:
-  - trusty
-  - xenial
-  - bionic
-  - focal
+- trusty
+- xenial
+- bionic
+- focal
+- groovy
 subordinate: false
 provides:
   simplestreams-image-service:
