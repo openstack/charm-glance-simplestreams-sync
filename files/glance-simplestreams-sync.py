@@ -243,8 +243,8 @@ def get_keystone_client(api_version):
             auth_url=os.environ['OS_AUTH_URL'])
         ksc_class = keystone_client.Client
     os_cacert = os.environ.get('OS_CACERT', None)
-    if (os.environ['OS_AUTH_URL'].startswith('https') and
-            os_cacert is not None):
+    if (os.environ['OS_AUTH_URL'].startswith('https')
+            and os_cacert is not None):
         ksc_vars['cacert'] = os_cacert
     return ksc_class(**ksc_vars)
 
@@ -471,7 +471,7 @@ class StatusExchange:
 
             status_queue(self.conn.channel()).declare()
 
-        except:
+        except:  # noqa
             log.exception("Exception during kombu setup")
             return False
 
@@ -572,7 +572,7 @@ def main():
         # not empty so we only match on this substring:
         if 'endpoint for image' in e.message:
             log.info("Glance endpoint not found, will continue polling.")
-    except Exception as e:
+    except Exception:
         log.exception("Exception during syncing:")
         status_exchange.send_message(
             {"status": "Error", "message": traceback.format_exc()})
