@@ -4,14 +4,14 @@ options:
     default: "[{url: 'http://cloud-images.ubuntu.com/releases/',
                 name_prefix: 'ubuntu:released',
                 path: 'streams/v1/index.sjson', max: 1,
-                item_filters: ['release~(trusty|xenial|bionic)', 'arch~(x86_64|amd64)', 'ftype~(disk1.img|disk.img)']}]"
+                item_filters: ['release~(trusty|xenial|bionic|focal)', 'arch~(x86_64|amd64)', 'ftype~(disk1.img|disk.img)']}]"
     description: >
       YAML-formatted list of simplestreams mirrors and their configuration
       properties. Defaults to downloading the released images from
       cloud-images.ubuntu.com.
   run:
     type: boolean
-    default: True
+    default: False
     description: "Should the sync be running or not?"
   use_swift:
     type: boolean
@@ -41,10 +41,11 @@ options:
     description: "This is prefixed to the object name when uploading to glance."
   custom_properties:
     type: string
-    default: ""
+    default:
     description: >
-      YAML-formatted list of any custom properties to be set in glance
-      for the synced image, e.g. architecture, hypervisor_type.
+      Space separated list of custom properties (format key=value) to be
+      set in glance for all synced images e.g. hw_firmware_type,
+      hw_vif_multiqueue_enabled.
   content_id_template:
     type: string
     default: "auto.sync"
@@ -99,21 +100,11 @@ options:
   source:
     type: string
     default:
-    description: |
-      Optional configuration to support use of additional sources such as:
-
-        - ppa:myteam/ppa
-        - cloud:trusty-proposed/kilo
-        - http://my.archive.com/ubuntu main
-
-        The last option should be used in conjunction with the key configuration
-        option.
+    description: DEPRECATED - option no longer used and will be removed
   key:
     type: string
     default:
-    description: |
-      Key ID to import to the apt keyring to support use with arbitary source
-      configuration from outside of Launchpad archives or PPA's.
+    description: DEPRECATED - option no longer used and will be removed
   hypervisor_mapping:
     type: boolean
     default: false
@@ -121,3 +112,7 @@ options:
       Enable configuration of hypervisor-type on synced images.
       .
       This is useful in multi-hypervisor clouds supporting both LXD and KVM.
+  snap-channel:
+    type: string
+    default: stable
+    description: Snap channel to install simplestreams snap from

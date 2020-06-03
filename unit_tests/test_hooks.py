@@ -57,6 +57,8 @@ class TestConfigChanged(CharmTestCase):
 
         setattr(self.test_config, "changed", lambda x: False)
         config.return_value = self.test_config
+        self.test_config.set('run', True)
+
         hooks.config_changed()
 
         symlink.assert_any_call(os.path.join(self.sharedir,
@@ -92,10 +94,9 @@ class TestConfigChanged(CharmTestCase):
         nrpe_config.return_value = self.test_config
 
         setattr(self.test_config, "changed", lambda x: False)
-        self.test_config.config["custom_properties"] = {
-            'hypervisor_type': 'kvm',
-            'hw_firmware_type': 'uefi'
-        }
+        self.test_config.config["custom_properties"] = (
+            "hypervisor_type=kvm hw_firmware_type=uefi"
+        )
         config.return_value = self.test_config
         hooks.config_changed()
 

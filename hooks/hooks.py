@@ -14,6 +14,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import base64
 import glob
 import os
 import shutil
@@ -32,6 +33,7 @@ def _add_path(path):
 _add_path(_root)
 
 from charmhelpers.fetch import add_source, apt_install, apt_update
+from charmhelpers.fetch.snap import snap_install
 from charmhelpers.core import hookenv
 from charmhelpers.payload.execd import execd_preinstall
 
@@ -66,7 +68,7 @@ USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
 
-SYNC_SCRIPT_NAME = "glance-simplestreams-sync.py"
+SYNC_SCRIPT_NAME = "glance_simplestreams_sync.py"
 SCRIPT_WRAPPER_NAME = "glance-simplestreams-sync.sh"
 
 CRON_D = '/etc/cron.d/'
@@ -76,15 +78,17 @@ CRON_POLL_FILEPATH = os.path.join(CRON_D, CRON_POLL_FILENAME)
 
 ERR_FILE_EXISTS = 17
 
-PACKAGES = ['python-simplestreams', 'python-glanceclient',
+PACKAGES = ['python-glanceclient',
             'python-yaml', 'python-keystoneclient',
             'python-kombu',
-            'python-swiftclient', 'ubuntu-cloudimage-keyring']
+            'python-swiftclient', 'ubuntu-cloudimage-keyring', 'snapd']
 
-PY3_PACKAGES = ['python3-simplestreams', 'python3-glanceclient',
+PY3_PACKAGES = ['python3-glanceclient',
                 'python3-yaml', 'python3-keystoneclient',
                 'python3-kombu',
                 'python3-swiftclient']
+
+JUJU_CA_CERT = "/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
 
 hooks = hookenv.Hooks()
 
@@ -110,8 +114,12 @@ class SSLIdentityServiceContext(IdentityServiceContext):
     def __call__(self):
         ctxt = super(SSLIdentityServiceContext, self).__call__()
         ssl_ca = hookenv.config('ssl_ca')
-        if ctxt and ssl_ca:
-            ctxt['ssl_ca'] = ssl_ca
+        if ctxt:
+            if ssl_ca:
+                ctxt['ssl_ca'] = ssl_ca
+            elif os.path.exists(JUJU_CA_CERT):
+                with open(JUJU_CA_CERT, 'rb') as ca_cert:
+                    ctxt['ssl_ca'] = base64.b64encode(ca_cert.read()).decode()
         return ctxt
 
 
@@ -184,6 +192,12 @@ def get_configs():
     return configs
 
 
+def install_gss_wrappers():
+    """Installs wrapper scripts for execution of simplestreams sync."""
+    for fn in [SYNC_SCRIPT_NAME, SCRIPT_WRAPPER_NAME]:
+        shutil.copy(os.path.join("files", fn), USR_SHARE_DIR)
+
+
 def install_cron_script():
     """Installs cron job in /etc/cron.$frequency/ for repeating sync
 
@@ -191,9 +205,6 @@ def install_cron_script():
     up-to-date.
 
     """
-    for fn in [SYNC_SCRIPT_NAME, SCRIPT_WRAPPER_NAME]:
-        shutil.copy(os.path.join("files", fn), USR_SHARE_DIR)
-
     config = hookenv.config()
     installed_script = os.path.join(USR_SHARE_DIR, SCRIPT_WRAPPER_NAME)
     linkname = '/etc/cron.{f}/{s}'.format(f=config['frequency'],
@@ -282,6 +293,11 @@ def install():
     apt_update(fatal=True)
 
     apt_install(_packages)
+
+    snap_install('simplestreams',
+                 *['--channel={}'.format(hookenv.config('snap-channel'))])
+
+    install_gss_wrappers()
 
     hookenv.log('end install hook.')
 

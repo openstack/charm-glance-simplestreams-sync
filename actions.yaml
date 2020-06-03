@@ -1,0 +1,2 @@
+sync-images:
+  description: "Sync all images into local OpenStack Cloud"

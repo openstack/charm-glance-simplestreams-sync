@@ -6,15 +6,13 @@ comment:
 # functest-run-suite ...
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
-  - model_alias_trusty: trusty-mitaka
   - xenial-mitaka
-  - xenial-ocata
-  - xenial-pike
   - xenial-queens
   - bionic-queens
   - bionic-rocky
   - bionic-stein
   - bionic-train
+  - bionic-ussuri
   - focal-ussuri
 
 tests_options:
@@ -25,7 +23,7 @@ tests_options:
 # functest-deploy --bundle /path/to/smoke/bundle
 # smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
 smoke_bundles:
-  - bionic-train
+  - bionic-ussuri
 
 # functest-run-suite --dev ...
 # functest-deploy --bundle /path/to/dev/bundle
@@ -43,14 +41,13 @@ target_deploy_status:
   glance-simplestreams-sync:
     # gss will be blocked since glance and rabbitmq don't have their
     # certificates yet. This should be fixed after vault initialization
-    workload-status: blocked
-    workload-status-message: Image sync failed, retrying soon.
+    workload-status: unknown
+    workload-status-message: ""
 
 # functest-configure
 configure:
   - zaza.openstack.charm_tests.vault.setup.auto_initialize
-  # skip vault init for trusty since vault doesn't suport trusty
-  - model_alias_trusty: []
+  - zaza.openstack.charm_tests.glance_simplestreams_sync.setup.sync_images
 
 # functest-test
 tests:

@@ -27,6 +27,8 @@ import base64
 import copy
 import logging
 import os
+import shutil
+import tempfile
 
 
 def setup_logging():
@@ -59,10 +61,6 @@ from keystoneclient.v2_0 import client as keystone_client
 from keystoneclient.v3 import client as keystone_v3_client
 import keystoneclient.exceptions as keystone_exceptions
 import kombu
-from simplestreams.mirrors import glance, UrlMirrorReader
-from simplestreams.objectstores.swift import SwiftObjectStore
-from simplestreams.objectstores import FileStore
-from simplestreams.util import read_signed, path_from_mirror_url
 import sys
 import time
 import traceback
@@ -92,7 +90,11 @@ PRODUCT_STREAMS_SERVICE_DESC = 'Ubuntu Product Streams'
 
 CRON_POLL_FILENAME = '/etc/cron.d/glance_simplestreams_sync_fastpoll'
 
-CACERT_FILE = os.path.join(CONF_FILE_DIR, 'cacert.pem')
+SSTREAM_SNAP_COMMON = '/var/snap/simplestreams/common'
+SSTREAM_LOG_FILE = os.path.join(SSTREAM_SNAP_COMMON,
+                                'sstream-mirror-glance.log')
+
+CACERT_FILE = os.path.join(SSTREAM_SNAP_COMMON, 'cacert.pem')
 SYSTEM_CACERT_FILE = '/etc/ssl/certs/ca-certificates.crt'
 
 # TODOs:
@@ -102,63 +104,6 @@ SYSTEM_CACERT_FILE = '/etc/ssl/certs/ca-certificates.crt'
 #   - debug keyring support
 #   - figure out what content_id is and whether we should allow users to
 #     set it
-
-try:
-    from simplestreams.util import ProgressAggregator
-    SIMPLESTREAMS_HAS_PROGRESS = True
-except ImportError:
-    class ProgressAggregator:
-        "Dummy class to allow charm to load with old simplestreams"
-    SIMPLESTREAMS_HAS_PROGRESS = False
-
-
-class GlanceMirrorWithCustomProperties(glance.GlanceMirror):
-    def __init__(self, *args, **kwargs):
-        custom_properties = kwargs.pop('custom_properties', {})
-        super(GlanceMirrorWithCustomProperties, self).__init__(*args, **kwargs)
-        self.custom_properties = custom_properties
-
-    def prepare_glance_arguments(self, *args, **kwargs):
-
-        glance_args = (super(GlanceMirrorWithCustomProperties, self)
-                       .prepare_glance_arguments(*args, **kwargs))
-
-        if self.custom_properties:
-            log.info('Setting custom image properties: {}'.format(
-                     self.custom_properties))
-            props = glance_args.get('properties', {})
-            props.update(self.custom_properties)
-            glance_args['properties'] = props
-
-        return glance_args
-
-
-class StatusMessageProgressAggregator(ProgressAggregator):
-    def __init__(self, remaining_items, send_status_message):
-        super(StatusMessageProgressAggregator, self).__init__(remaining_items)
-        self.send_status_message = send_status_message
-
-    def emit(self, progress):
-        size = float(progress['size'])
-        written = float(progress['written'])
-        cur = self.total_image_count - len(self.remaining_items) + 1
-        totpct = float(self.total_written) / self.total_size
-        msg = "{name} {filepct:.0%}\n"\
-              "({cur} of {tot} images) total: "\
-              "{totpct:.0%}".format(name=progress['name'],
-                                    filepct=(written / size),
-                                    cur=cur,
-                                    tot=self.total_image_count,
-                                    totpct=totpct)
-        self.send_status_message(dict(status="Syncing",
-                                      message=msg))
-
-
-def policy(content, path):
-    if path.endswith('sjson'):
-        return read_signed(content, keyring=KEYRING)
-    else:
-        return content
 
 
 def read_conf(filename):
@@ -292,54 +237,68 @@ def do_sync(charm_conf, status_exchange):
     # user_agent = charm_conf.get("user_agent")
 
     for mirror_info in charm_conf['mirror_list']:
-        mirror_url, initial_path = path_from_mirror_url(mirror_info['url'],
-                                                        mirror_info['path'])
+        # NOTE: output directory must be under HOME
+        #       or snap cannot access it for stream files
+        tmpdir = tempfile.mkdtemp(dir=os.environ['HOME'])
+        try:
+            log.info("Configuring sync for url {}".format(mirror_info))
+            content_id = charm_conf['content_id_template'].format(
+                region=charm_conf['region'])
 
-        log.info("configuring sync for url {}".format(mirror_info))
+            sync_command = [
+                "/snap/bin/simplestreams.sstream-mirror-glance",
+                "-vv",
+                "--keep",
+                "--max", str(mirror_info['max']),
+                "--content-id", content_id,
+                "--cloud-name", charm_conf['cloud_name'],
+                "--path", mirror_info['path'],
+                "--name-prefix", charm_conf['name_prefix'],
+                "--keyring", KEYRING,
+                "--log-file", SSTREAM_LOG_FILE,
+            ]
 
-        smirror = UrlMirrorReader(
-            mirror_url, policy=policy)
+            if charm_conf['use_swift']:
+                sync_command += [
+                    '--output-swift',
+                    SWIFT_DATA_DIR
+                ]
+            else:
+                sync_command += [
+                    "--output-dir",
+                    tmpdir
+                ]
 
-        if charm_conf['use_swift']:
-            store = SwiftObjectStore(SWIFT_DATA_DIR)
-        else:
-            # Use the local apache server to serve product streams
-            store = FileStore(prefix=APACHE_DATA_DIR)
+            if charm_conf.get('hypervisor_mapping', False):
+                sync_command += [
+                    '--hypervisor-mapping'
+                ]
+            if charm_conf.get('custom_properties'):
+                custom_properties = charm_conf.get('custom_properties').split()
+                for custom_property in custom_properties:
+                    sync_command += [
+                        '--custom-property',
+                        custom_property
+                    ]
 
-        content_id = charm_conf['content_id_template'].format(
-            region=charm_conf['region'])
+            sync_command += [
+                mirror_info['url'],
+            ]
+            sync_command += mirror_info['item_filters']
 
-        config = {'max_items': mirror_info['max'],
-                  'modify_hook': charm_conf['modify_hook_scripts'],
-                  'keep_items': True,
-                  'content_id': content_id,
-                  'cloud_name': charm_conf['cloud_name'],
-                  'item_filters': mirror_info['item_filters'],
-                  'hypervisor_mapping': charm_conf.get('hypervisor_mapping',
-                                                       False)}
+            log.info("calling sstream-mirror-glance")
+            log.debug("command: {}".format(" ".join(sync_command)))
+            subprocess.check_call(sync_command)
 
-        mirror_args = dict(config=config, objectstore=store,
-                           name_prefix=charm_conf['name_prefix'])
-        mirror_args['custom_properties'] = charm_conf.get('custom_properties',
-                                                          {})
-
-        if SIMPLESTREAMS_HAS_PROGRESS:
-            log.info("Calling DryRun mirror to get item list")
-
-            drmirror = glance.ItemInfoDryRunMirror(config=config,
-                                                   objectstore=store)
-            drmirror.sync(smirror, path=initial_path)
-            p = StatusMessageProgressAggregator(drmirror.items,
-                                                status_exchange.send_message)
-            mirror_args['progress_callback'] = p.progress_callback
-        else:
-            log.info("Detected simplestreams version without progress"
-                     " update support. Only limited feedback available.")
-
-        tmirror = GlanceMirrorWithCustomProperties(**mirror_args)
-
-        log.info("calling GlanceMirror.sync")
-        tmirror.sync(smirror, path=initial_path)
+            if not charm_conf['use_swift']:
+                # Sync output directory to APACHE_DATA_DIR
+                subprocess.check_call([
+                    'rsync', '-avz',
+                    os.path.join(tmpdir, charm_conf['region'], 'streams'),
+                    APACHE_DATA_DIR
+                ])
+        finally:
+            shutil.rmtree(tmpdir)
 
 
 def update_product_streams_service(ksc, services, region):
@@ -367,18 +326,32 @@ def update_product_streams_service(ksc, services, region):
 
 
 def juju_run_cmd(cmd):
-    '''Execute the passed commands under the local unit context'''
-    id_conf, _ = get_conf()
-    unit_name = id_conf['unit_name']
-    _cmd = ['juju-run', unit_name, ' '.join(cmd)]
+    '''Execute the passed commands under the local unit context if required'''
+    # NOTE: determine whether juju-run is actually required
+    #       supporting execution via actions.
+    if not os.environ.get('JUJU_CONTEXT_ID'):
+        id_conf, _ = get_conf()
+        unit_name = id_conf['unit_name']
+        _cmd = ['juju-run', unit_name, ' '.join(cmd)]
+    else:
+        _cmd = cmd
     log.info("Executing command: {}".format(_cmd))
     return subprocess.check_output(_cmd)
 
 
 def status_set(status, message):
     try:
-        juju_run_cmd(['status-set', status,
-                      '"{}"'.format(message)])
+        # NOTE: format of message is different for out of
+        #       context execution.
+        if not os.environ.get('JUJU_CONTEXT_ID'):
+            juju_run_cmd(['status-set', status,
+                          '"{}"'.format(message)])
+        else:
+            subprocess.check_output([
+                'status-set',
+                status,
+                message
+            ])
     except subprocess.CalledProcessError:
         log.info(message)
 
