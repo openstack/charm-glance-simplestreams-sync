@@ -17,7 +17,7 @@ limitations under the License.
 '''
 
 import files.glance_simplestreams_sync as gss
-import mock
+import unittest.mock as mock
 import unittest
 
 from keystoneclient import exceptions as keystone_exceptions
