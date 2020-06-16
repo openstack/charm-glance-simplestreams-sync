@@ -321,7 +321,7 @@ def do_sync(charm_conf, status_exchange):
         mirror_args = dict(config=config, objectstore=store,
                            name_prefix=charm_conf['name_prefix'])
         mirror_args['custom_properties'] = charm_conf.get('custom_properties',
-                                                          False)
+                                                          {})
 
         if SIMPLESTREAMS_HAS_PROGRESS:
             log.info("Calling DryRun mirror to get item list")
