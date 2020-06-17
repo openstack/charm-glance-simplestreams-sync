@@ -396,7 +396,7 @@ def update_endpoint_urls(region, publicurl, adminurl, internalurl):
             'admin_url': adminurl,
             'internal_url': internalurl
         }
-        for k, v in relation_data.iteritems():
+        for k, v in relation_data.items():
             _cmd.append('{}={}'.format(k, v))
         juju_run_cmd(_cmd)
 
