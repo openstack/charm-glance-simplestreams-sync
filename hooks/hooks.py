@@ -37,8 +37,7 @@ from charmhelpers.fetch.snap import snap_install
 from charmhelpers.core import hookenv
 from charmhelpers.payload.execd import execd_preinstall
 
-from charmhelpers.contrib.openstack.context import (AMQPContext,
-                                                    IdentityServiceContext,
+from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
                                                     OSContextGenerator)
 from charmhelpers.contrib.openstack.utils import (
     get_os_codename_package,
@@ -80,12 +79,10 @@ ERR_FILE_EXISTS = 17
 
 PACKAGES = ['python-glanceclient',
             'python-yaml', 'python-keystoneclient',
-            'python-kombu',
             'python-swiftclient', 'ubuntu-cloudimage-keyring', 'snapd']
 
 PY3_PACKAGES = ['python3-glanceclient',
                 'python3-yaml', 'python3-keystoneclient',
-                'python3-kombu',
                 'python3-swiftclient']
 
 JUJU_CA_CERT = "/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
@@ -187,7 +184,6 @@ def get_configs():
 
     configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
     configs.register(ID_CONF_FILE_NAME, [SSLIdentityServiceContext(),
-                                         AMQPContext(),
                                          UnitNameContext()])
     return configs
 
@@ -340,22 +336,6 @@ def upgrade_charm():
     configs = get_configs()
     configs.write_all()
     ensure_perms()
-
-
-@hooks.hook('amqp-relation-joined')
-def amqp_joined():
-    conf = hookenv.config()
-    hookenv.relation_set(username=conf['rabbit-user'],
-                         vhost=conf['rabbit-vhost'])
-
-
-@hooks.hook('amqp-relation-changed')
-def amqp_changed():
-    configs = get_configs()
-    if 'amqp' not in configs.complete_contexts():
-        hookenv.log('amqp relation incomplete. Peer not ready?')
-        return
-    configs.write(ID_CONF_FILE_NAME)
 
 
 @hooks.hook('nrpe-external-master-relation-joined',

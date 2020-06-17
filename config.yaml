@@ -67,14 +67,6 @@ options:
 
       Currently the only available substitution is "region".  Any
       other attempted substitutions will break the sync script.
-  rabbit-user:
-    default: glance-simplestreams-sync
-    type: string
-    description: Username to request access on rabbitmq-server.
-  rabbit-vhost:
-    default: openstack
-    type: string
-    description: RabbitMQ virtual host to request access on rabbitmq-server.
   ssl_ca:
     type: string
     default:

@@ -23,12 +23,22 @@
 # juju relation to keystone. However, it does not execute in a
 # juju hook context itself.
 
+import atexit
 import base64
 import copy
+import fcntl
 import logging
 import os
 import shutil
+import sys
+import subprocess
 import tempfile
+import time
+import yaml
+
+from keystoneclient.v2_0 import client as keystone_client
+from keystoneclient.v3 import client as keystone_v3_client
+from keystoneclient import exceptions as keystone_exceptions
 
 
 def setup_logging():
@@ -53,19 +63,6 @@ def setup_logging():
 
 
 log = setup_logging()
-
-
-import atexit
-import fcntl
-from keystoneclient.v2_0 import client as keystone_client
-from keystoneclient.v3 import client as keystone_v3_client
-import keystoneclient.exceptions as keystone_exceptions
-import kombu
-import sys
-import time
-import traceback
-import yaml
-import subprocess
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
@@ -228,7 +225,7 @@ def set_openstack_env(id_conf, charm_conf):
         os.environ['OS_TENANT_NAME'] = id_conf['admin_tenant_name']
 
 
-def do_sync(charm_conf, status_exchange):
+def do_sync(charm_conf):
 
     # NOTE(beisner): the user_agent variable was an unused assignment (lint).
     # It may be worth re-visiting its usage, intent and benefit with the
@@ -374,96 +371,6 @@ def update_endpoint_urls(region, publicurl, adminurl, internalurl):
         juju_run_cmd(_cmd)
 
 
-class StatusExchange:
-    """Wrapper for rabbitmq status exchange connection.
-
-    If no connection exists, this attempts to create a connection
-    before sending each message.
-    """
-
-    def __init__(self):
-        self.conn = None
-        self.exchange = None
-
-        self._setup_connection()
-
-    def _setup_connection(self):
-        """Returns True if a valid connection exists already, or if one can be
-        created."""
-
-        if self.conn:
-            return True
-
-        id_conf = read_conf(ID_CONF_FILE_NAME)
-
-        # The indentity.yaml file contains either a singular string variable
-        # 'rabbit_host', or a comma separated list in the plural variable
-        # 'rabbit_hosts'
-        host = None
-        hosts = id_conf.get('rabbit_hosts', None)
-        if hosts is not None:
-            host = hosts.split(",")[0]
-        else:
-            host = id_conf.get('rabbit_host', None)
-
-        if host is None:
-            log.warning("no host info in configuration, can't set up rabbit.")
-            return False
-
-        try:
-            # amqp:// implies librabbitmq if available, otherwise pyamqp
-            # librabbitmq doesn't support SSL
-            # use pyamqp:// explicitly for SSL
-            url = "pyamqp://{}:{}@{}/{}".format(
-                id_conf['rabbit_userid'], id_conf['rabbit_password'],
-                host, id_conf['rabbit_virtual_host'])
-
-            ssl = None
-            if 'rabbit_use_ssl' in id_conf:
-                if 'ssl_ca' in id_conf:
-                    cacert = CACERT_FILE
-                else:
-                    cacert = SYSTEM_CACERT_FILE
-                    try:
-                        os.makedirs('/usr/local/share/ca-certificates')
-                    except os.error:
-                        # ignore existence of already created directory
-                        pass
-                    with open('/usr/local/share/ca-certificates/'
-                              'glance-simplestreams-sync.crt', 'wb') as f:
-                        f.write(
-                            base64.b64decode(id_conf['kombu_ssl_ca_certs']))
-                    subprocess.check_call(
-                        ['/usr/sbin/update-ca-certificates', '--fresh'])
-                ssl = {'ca_certs': cacert}
-
-            self.conn = kombu.BrokerConnection(url, ssl=ssl)
-            self.exchange = kombu.Exchange("glance-simplestreams-sync-status")
-            status_queue = kombu.Queue("glance-simplestreams-sync-status",
-                                       exchange=self.exchange)
-
-            status_queue(self.conn.channel()).declare()
-
-        except:  # noqa
-            log.exception("Exception during kombu setup")
-            return False
-
-        return True
-
-    def send_message(self, msg):
-        if not self._setup_connection():
-            log.warning("No rabbitmq connection available for msg"
-                        "{}. Message will be lost.".format(str(msg)))
-            return
-
-        with self.conn.Producer(exchange=self.exchange) as producer:
-            producer.publish(msg)
-
-    def close(self):
-        if self.conn:
-            self.conn.close()
-
-
 def cleanup():
     try:
         os.unlink(SYNC_RUNNING_FLAG_FILE_NAME)
@@ -515,23 +422,14 @@ def main():
         else:
             log.info("Not updating product streams service.")
 
-        status_exchange = StatusExchange()
-
         log.info("Beginning image sync")
         status_set('maintenance', 'Synchronising images')
 
-        status_exchange.send_message({"status": "Started",
-                                      "message": "Sync starting."})
-        do_sync(charm_conf, status_exchange)
+        do_sync(charm_conf)
         ts = time.strftime("%x %X")
         # "Unit is ready" is one of approved message prefixes
         # Prefix the message with it will help zaza to understand the status.
-        completed_msg = "Unit is ready. Sync completed at {}".format(ts)
-        status_exchange.send_message({"status": "Done",
-                                      "message": completed_msg})
-        status_set('active', completed_msg)
-
-        status_exchange.close()
+        status_set('active', "Unit is ready (Sync completed at {})".format(ts))
 
         # If this is an initial per-minute sync attempt, delete it on success.
         if os.path.exists(CRON_POLL_FILENAME):
@@ -547,8 +445,6 @@ def main():
             log.info("Glance endpoint not found, will continue polling.")
     except Exception:
         log.exception("Exception during syncing:")
-        status_exchange.send_message(
-            {"status": "Error", "message": traceback.format_exc()})
         status_set('blocked', 'Image sync failed, retrying soon.')
 
     log.info("sync done.")
