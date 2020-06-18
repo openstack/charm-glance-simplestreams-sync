@@ -4,7 +4,7 @@ options:
     default: "[{url: 'http://cloud-images.ubuntu.com/releases/',
                 name_prefix: 'ubuntu:released',
                 path: 'streams/v1/index.sjson', max: 1,
-                item_filters: ['release~(trusty|xenial|bionic)', 'arch~(x86_64|amd64)', 'ftype~(disk1.img|disk.img)']}]"
+                item_filters: ['release~(trusty|xenial|bionic|focal)', 'arch~(x86_64|amd64)', 'ftype~(disk1.img|disk.img)']}]"
     description: >
       YAML-formatted list of simplestreams mirrors and their configuration
       properties. Defaults to downloading the released images from
