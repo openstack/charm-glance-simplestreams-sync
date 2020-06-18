@@ -9,6 +9,16 @@ machines:
   '2':
   '3':
   '4':
+  '5':
+  '6':
+    constraints: "mem=2048"
+  '7':
+    constraints: "mem=2048"
+  '8':
+    constraints: "mem=2048"
+  '9':
+  '10':
+  '11':
 
 relations:
   - ['vault:shared-db', 'mysql:shared-db']
@@ -19,6 +29,10 @@ relations:
   - ['glance-simplestreams-sync:certificates', 'vault:certificates']
   - ['glance:identity-service', 'keystone:identity-service']
   - ['glance-simplestreams-sync:identity-service', 'keystone:identity-service']
+  - ['ceph-osd:mon', 'ceph-mon:osd']
+  - ['ceph-radosgw:mon', 'ceph-mon:radosgw']
+  - ['ceph-radosgw:identity-service', 'keystone:identity-service']
+  - ['ceph-radosgw:certificates', 'vault:certificates']
 
 applications:
   mysql:
@@ -44,7 +58,26 @@ applications:
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync
     num_units: 1
-    options:
-      use_swift: False
     to:
       - '4'
+  ceph-radosgw:
+    charm: cs:~openstack-charmers-next/ceph-radosgw
+    num_units: 1
+    to:
+      - '5'
+  ceph-osd:
+    charm: cs:~openstack-charmers-next/ceph-osd
+    num_units: 3
+    storage:
+      osd-devices: 'cinder,10G'
+    to:
+      - '6'
+      - '7'
+      - '8'
+  ceph-mon:
+    charm: cs:~openstack-charmers-next/ceph-mon
+    num_units: 3
+    to:
+      - '9'
+      - '10'
+      - '11'
