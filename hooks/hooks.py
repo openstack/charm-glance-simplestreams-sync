@@ -59,6 +59,7 @@ from charmhelpers.contrib.openstack.cert_utils import (
 from charmhelpers.core.host import (
     CompareHostReleases,
     lsb_release,
+    install_ca_cert,
 )
 
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
@@ -325,6 +326,11 @@ def config_changed():
         hookenv.log("'run' set to False, removing cron jobs")
         uninstall_cron_script()
         uninstall_cron_poll()
+
+    if config.get('ssl_ca'):
+        install_ca_cert(
+            base64.b64decode(config.get('ssl_ca')),
+        )
 
     config.save()
 

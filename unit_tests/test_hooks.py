@@ -1,3 +1,4 @@
+import base64
 import mock
 import os
 import shutil
@@ -12,6 +13,7 @@ TO_PATCH = [
     'apt_update',
     'apt_install',
     'get_release',
+    'install_ca_cert',
 ]
 
 
@@ -58,6 +60,7 @@ class TestConfigChanged(CharmTestCase):
         setattr(self.test_config, "changed", lambda x: False)
         config.return_value = self.test_config
         self.test_config.set('run', True)
+        self.test_config.set('ssl_ca', base64.b64encode(b'foobar'))
 
         hooks.config_changed()
 
@@ -78,6 +81,7 @@ class TestConfigChanged(CharmTestCase):
         mirror_list = yaml.safe_load(self.test_config['mirror_list'])
         self.assertEqual(mirrors['mirror_list'], mirror_list)
         update_nrpe_config.assert_called()
+        self.install_ca_cert.assert_called_with(b'foobar')
 
     @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.symlink')
