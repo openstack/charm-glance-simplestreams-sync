@@ -30,6 +30,7 @@ import fcntl
 import logging
 import os
 import shutil
+import six
 import sys
 import subprocess
 import tempfile
@@ -333,7 +334,10 @@ def juju_run_cmd(cmd):
     else:
         _cmd = cmd
     log.info("Executing command: {}".format(_cmd))
-    return subprocess.check_output(_cmd)
+    out = subprocess.check_output(_cmd)
+    if six.PY3:
+        out = out.decode('utf-8')
+    return out
 
 
 def status_set(status, message):
