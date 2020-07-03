@@ -1,5 +1,5 @@
 variables:
-  openstack-origin: &openstack-origin distro
+  source: &source distro
 
 series: focal
 
@@ -14,6 +14,17 @@ machines:
   '4':
   '5':
   '6':
+  '7':
+  '8':
+    constraints: "mem=2048"
+  '9':
+    constraints: "mem=2048"
+  '10':
+    constraints: "mem=2048"
+  '11':
+  '12':
+  '13':
+
 
 applications:
 
@@ -28,7 +39,7 @@ applications:
     charm: cs:~openstack-charmers-next/mysql-innodb-cluster
     num_units: 3
     options:
-      source: *openstack-origin
+      source: *source
     to:
       - '0'
       - '1'
@@ -44,7 +55,7 @@ applications:
     charm: cs:~openstack-charmers-next/keystone
     num_units: 1
     options:
-      openstack-origin: *openstack-origin
+      openstack-origin: *source
     to:
       - '4'
 
@@ -52,17 +63,45 @@ applications:
     charm: cs:~openstack-charmers-next/glance
     num_units: 1
     options:
-      openstack-origin: *openstack-origin
+      openstack-origin: *source
     to:
       - '5'
 
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync
     num_units: 1
-    options:
-      use_swift: False
     to:
       - '6'
+
+  ceph-radosgw:
+    charm: cs:~openstack-charmers-next/ceph-radosgw
+    num_units: 1
+    options:
+      source: *source
+    to:
+      - '7'
+
+  ceph-osd:
+    charm: cs:~openstack-charmers-next/ceph-osd
+    num_units: 3
+    storage:
+      osd-devices: 'cinder,10G'
+    options:
+      source: *source
+    to:
+      - '8'
+      - '9'
+      - '10'
+
+  ceph-mon:
+    charm: cs:~openstack-charmers-next/ceph-mon
+    num_units: 3
+    options:
+      source: *source
+    to:
+      - '11'
+      - '12'
+      - '13'
 
 relations:
   - ['keystone:certificates', 'vault:certificates']
@@ -76,3 +115,7 @@ relations:
   - ['keystone-mysql-router:db-router','mysql-innodb-cluster:db-router']
   - ['glance-mysql-router:db-router','mysql-innodb-cluster:db-router']
   - ['vault-mysql-router:db-router','mysql-innodb-cluster:db-router']
+  - ['ceph-osd:mon', 'ceph-mon:osd']
+  - ['ceph-radosgw:mon', 'ceph-mon:radosgw']
+  - ['ceph-radosgw:identity-service', 'keystone:identity-service']
+  - ['ceph-radosgw:certificates', 'vault:certificates']
