@@ -16,7 +16,13 @@ options:
   use_swift:
     type: boolean
     default: True
-    description: "Should the charm set up the product-streams endpoint with swift's URLs?"
+    description: >
+      DEPRECATED FOR REMOVAL
+      Should the charm set up the product-streams endpoint with swift's URLs?
+      If this value is set to False, product-streams metadata will be hosted
+      on a local Apache server running on the unit and endpoints will be
+      registered referencing the local unit.  This does not support HA
+      or TLS and is for testing purposes only.
   frequency:
     type: string
     default: "daily"
