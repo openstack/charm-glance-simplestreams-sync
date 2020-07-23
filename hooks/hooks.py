@@ -305,7 +305,7 @@ def install():
 def config_changed():
     hookenv.log('begin config-changed hook.')
     configs = get_configs()
-    configs.write(MIRRORS_CONF_FILE_NAME)
+    configs.write_all()
     ensure_perms()
 
     update_nrpe_config()
