@@ -186,8 +186,8 @@ def get_keystone_client(api_version):
             auth_url=os.environ['OS_AUTH_URL'])
         ksc_class = keystone_client.Client
     os_cacert = os.environ.get('OS_CACERT', None)
-    if (os.environ['OS_AUTH_URL'].startswith('https')
-            and os_cacert is not None):
+    if (os.environ['OS_AUTH_URL'].startswith('https') and
+            os_cacert is not None):
         ksc_vars['cacert'] = os_cacert
     return ksc_class(**ksc_vars)
 
