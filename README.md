@@ -1,84 +1,89 @@
-# Known Issues
-
-https://bugs.launchpad.net/charm-glance-simplestreams-sync
-
 # Overview
 
-This charm provides a service that syncs your OpenStack cloud's
-available OS images in OpenStack Glance with the available images from
-a set of simplestreams mirrors, by default using
-cloud-images.ubuntu.com.
+The glance-simplestreams-sync charm keeps OpenStack cloud images (in Glance)
+synchronised with the latest available images from a Simplestreams mirror(s).
+It uses Cron to do this.
 
-It will create a user named 'image-stream' in the 'services' tenant.
-If swift is enabled, glance will store its images in swift using the
-image-stream username.
+The charm places simplestreams metadata in Object storage for future use by
+Juju. It then publishes the URL for that metadata as the endpoints of a new
+OpenStack service called 'product-streams'.
 
-It can optionally also store simplestreams metadata into Swift for
-future use by juju. If enabled, it publishes the URL for that metadata
-as the endpoints of a new OpenStack service called 'product-streams'.
-If using Swift is not enabled, the product-streams service will still
-exist, but nothing will respond to requests to its endpoints.
-
-The charm installs a cron job that repeatedly checks the
-status of related services and begins syncing image data from your
-configured mirrors as soon as all services are in place.
-
-It can be deployed at any time, and upon deploy (or changing the 'run'
-config setting), it will attempt to contact keystone and glance and
-start a sync every minute until a successful sync occurs.
-
-# Requirements
-
-This charm requires a relation to keystone. It also requires a
-running glance instance, but not a direct relation to glance. It
-connects to glance via its endpoint as published in keystone.
+The charm installs Simplestreams from a [snap][snap-upstream].
 
 # Usage
 
-    juju deploy glance-simplestreams-sync [--config optional-config.yaml]
-    juju add-relation keystone glance-simplestreams-sync
-
 # Configuration
 
-The charm has the following configuration variables:
+This section covers common and/or important configuration options. See file
+`config.yaml` for the full list of options, along with their descriptions and
+default values. See the [Juju documentation][juju-docs-config-apps] for details
+on configuring applications.
 
-## `run`
+#### `run`
 
-`run` is a boolean that enables or disables the sync cron script.  It
-is True by default, and changing it from False to True will schedule
-an immediate attempt to sync images.
+The `run` option enables the synchronisation cron script. This option accepts
+Boolean values ('true' or 'false') with the default value being 'false'.
+Changing the value from 'false' to 'true' will immediately schedule an image
+sync.
 
-## `use_swift`
+> **Note**: Enabling this option at cloud deploy time may cause a race
+  condition with the set up of a possible storage backend for Glance.
 
-`use_swift` is a boolean that determines whether or not to store data
-in swift and publish the path to product metadata via the
-'product-streams' endpoint.
+#### `frequency`
 
-*NOTE* Changing the value will only affect the next sync, and does not
- currently remove an existing product-streams service or delete
- potentially stale product data.
+The `frequency` option controls how often the sync cron job is run. It is used
+to link the cron script into `/etc/cron.<frequency>`. Valid string values are:
+'hourly', 'daily', and 'weekly'. The default is 'daily'.
 
-## `frequency`
+#### `region`
 
-`frequency` is a string, and must be one of 'hourly', 'daily',
-'weekly'.  It controls how often the sync cron job is run - it is used
-to link the script into `/etc/cron.$frequency`.
+The `region` option states the OpenStack region to operate in. The default
+value is 'RegionOne'.
 
-## `region`
+#### `mirror_list`
 
-`region` is the OpenStack region in which the product-streams endpoint
-will be created.
+The `mirror_list` option is a YAML-formatted list of Simplestreams mirrors and
+their configuration properties. The default behaviour is to download images
+from [https://cloud-images.ubuntu.com][cloud-images.ubuntu.com].
 
-## `mirror_list`
+#### `ssl_ca`
 
-`mirror_list` is a yaml-formatted list of options to be passed to
-Simplestreams. It defaults to settings for downloading images from
-cloud-images.ubuntu.com, and is not yet tested with other mirror
-locations. If you have set up your own Simplestreams mirror, you
-should be able to set the necessary configuration values.
-
-## `ssl_ca`
-
-This is used, optionally, to verify the certificates when in ssl mode for
-keystone and glance.  This should be provided as a base64 encoded PEM
+The `ssl_ca` option verifies (optionally) the certificates when in SSL mode for
+Keystone and Glance. This should be provided as a base64 encoded PEM
 certificate.
+
+## Deployment
+
+To deploy to an existing OpenStack cloud (that already includes Glance, Object
+storage, and Keystone):
+
+    juju deploy glance-simplestreams-sync
+    juju add-relation glance-simplestreams-sync:identity-service keystone:identity-service
+
+> **Note**: Charmed OpenStack commonly employs Ceph-backed Object storage (see
+  the [ceph-radosgw charm][ceph-radosgw-charm]). Otherwise, a vanilla
+  Swift-based solution can be used (see the [swift-proxy charm][swift-proxy-charm]).
+
+## Actions
+
+Juju [actions][juju-docs-actions] allow specific operations to be performed on
+a per-unit basis. This charm supports the single action `sync-images`, which
+allows for a one-time image sync from the currently configured mirror list.
+
+# Bugs
+
+Please report bugs on [Launchpad][lp-bugs-charm-glance-simplestreams-sync].
+
+For general charm questions refer to the [OpenStack Charm Guide][cg].
+
+<!-- LINKS -->
+
+[cg]: https://docs.openstack.org/charm-guide
+[cdg]: https://docs.openstack.org/project-deploy-guide/charm-deployment-guide
+[lp-bugs-charm-glance-simplestreams-sync]: https://bugs.launchpad.net/charm-glance-simplestreams-sync/+filebug
+[juju-docs-actions]: https://juju.is/docs/working-with-actions
+[juju-docs-config-apps]: https://juju.is/docs/configuring-applications
+[snap-upstream]: https://snapcraft.io/
+[cloud-images.ubuntu.com]: https://cloud-images.ubuntu.com
+[ceph-radosgw-charm]: https://jaas.ai/ceph-radosgw
+[swift-proxy-charm]: https://jaas.ai/swift-proxy

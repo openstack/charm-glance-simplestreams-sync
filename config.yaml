@@ -12,7 +12,7 @@ options:
   run:
     type: boolean
     default: False
-    description: "Should the sync be running or not?"
+    description: "Enable cron-based synchronisation"
   use_swift:
     type: boolean
     default: True
@@ -30,7 +30,7 @@ options:
   region:
     type: string
     default: "RegionOne"
-    description: "Openstack region to operate in."
+    description: "OpenStack region to operate in."
   cloud_name:
     type: string
     default: "glance-simplestreams-sync-openstack"
