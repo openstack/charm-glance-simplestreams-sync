@@ -14,6 +14,7 @@ gate_bundles:
   - bionic-train
   - bionic-ussuri
   - focal-ussuri
+  - focal-victoria
 
 tests_options:
   force_deploy:
@@ -29,7 +30,6 @@ smoke_bundles:
 # functest-deploy --bundle /path/to/dev/bundle
 # smoke bundle should be (Ubuntu LTS latest)-(OpenStack development)
 dev_bundles:
-  - focal-victoria
   - groovy-victoria
 
 # special target deploy status for above deploy phase
