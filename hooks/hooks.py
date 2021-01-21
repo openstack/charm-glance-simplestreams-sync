@@ -86,7 +86,8 @@ PY3_PACKAGES = ['python3-glanceclient',
                 'python3-yaml', 'python3-keystoneclient',
                 'python3-swiftclient']
 
-JUJU_CA_CERT = "/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+KEYSTONE_CA_CERT = "/usr/local/share/ca-certificates/keystone_juju_ca_cert.crt"
+VAULT_CA_CERT = "/usr/local/share/ca-certificates/vault_juju_ca_cert.crt"
 
 hooks = hookenv.Hooks()
 
@@ -103,6 +104,19 @@ class UnitNameContext(OSContextGenerator):
         return {'unit_name': hookenv.local_unit()}
 
 
+def get_ca_cert_file():
+    """Return the cacert file from a relation if there is one.
+
+    :returns: Path to certificate
+    :rtype: str
+    """
+    if os.path.exists(VAULT_CA_CERT):
+        return VAULT_CA_CERT
+    if os.path.exists(KEYSTONE_CA_CERT):
+        return KEYSTONE_CA_CERT
+    return None
+
+
 class SSLIdentityServiceContext(IdentityServiceContext):
     """Modify the IdentityServiceContext to includea an SSL option.
 
@@ -112,11 +126,12 @@ class SSLIdentityServiceContext(IdentityServiceContext):
     def __call__(self):
         ctxt = super(SSLIdentityServiceContext, self).__call__()
         ssl_ca = hookenv.config('ssl_ca')
+        relation_ca_cert_file = get_ca_cert_file()
         if ctxt:
             if ssl_ca:
                 ctxt['ssl_ca'] = ssl_ca
-            elif os.path.exists(JUJU_CA_CERT):
-                with open(JUJU_CA_CERT, 'rb') as ca_cert:
+            elif relation_ca_cert_file:
+                with open(relation_ca_cert_file, 'rb') as ca_cert:
                     ctxt['ssl_ca'] = base64.b64encode(ca_cert.read()).decode()
         return ctxt
 
