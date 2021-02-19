@@ -7,15 +7,17 @@ comment:
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
   - xenial-mitaka
-  - xenial-queens
   - bionic-queens
-  - bionic-rocky
   - bionic-stein
   - bionic-train
   - bionic-ussuri
   - focal-ussuri
   - focal-victoria
   - groovy-victoria
+
+dev_bundles:
+  - xenial-queens
+  - bionic-rocky
 
 tests_options:
   force_deploy:
