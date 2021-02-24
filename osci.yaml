@@ -1,0 +1,13 @@
+- project:
+    templates:
+      - charm-unit-jobs
+    check:
+      jobs:
+      - xenial-mitaka
+      - bionic-queens
+      - bionic-stein
+      - bionic-train
+      - bionic-ussuri
+      - focal-ussuri
+      - focal-victoria
+      - groovy-victoria
