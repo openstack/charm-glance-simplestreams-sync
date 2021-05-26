@@ -395,6 +395,7 @@ def main():
         log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
         sys.exit(0)
 
+    returncode = 0
     atexit.register(cleanup)
     lockfile.write(str(os.getpid()))
 
@@ -447,12 +448,15 @@ def main():
         # not empty so we only match on this substring:
         if 'endpoint for image' in e.message:
             log.info("Glance endpoint not found, will continue polling.")
-    except Exception:
+            returncode = os.EX_UNAVAILABLE
+    except subprocess.CalledProcessError as e:
+        returncode = e.returncode
         log.exception("Exception during syncing:")
         status_set('blocked', 'Image sync failed, retrying soon.')
 
     log.info("sync done.")
+    return returncode
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
