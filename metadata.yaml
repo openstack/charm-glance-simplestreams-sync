@@ -13,6 +13,7 @@ series:
 - focal
 - groovy
 - hirsute
+- impish
 subordinate: false
 provides:
   simplestreams-image-service:
