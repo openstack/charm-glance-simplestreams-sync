@@ -350,7 +350,7 @@ def config_changed():
     config.save()
 
 
-@hooks.hook('upgrade-charm')
+@hooks.hook('upgrade-charm.real')
 def upgrade_charm():
     install()
     update_nrpe_config()
@@ -380,7 +380,7 @@ def pre_series_upgrade():
                        "Set complete when finished.")
 
 
-@hooks.hook('post-series-upgrade')
+@hooks.hook('post-series-upgrade.real')
 def post_series_upgrade():
     hookenv.log("Running complete series upgrade hook", "INFO")
     # In order to indicate the step of the series upgrade process for
@@ -388,6 +388,7 @@ def post_series_upgrade():
     # upgrading states.
     clear_unit_paused()
     clear_unit_upgrading()
+    install()
     hookenv.status_set("active", "")
 
 
