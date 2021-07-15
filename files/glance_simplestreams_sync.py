@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2014 Canonical Ltd.
 #
@@ -27,22 +27,28 @@ import atexit
 import base64
 import copy
 import fcntl
+import itertools
 import logging
 import os
+import re
 import shutil
 import six
-import sys
 import subprocess
+import sys
 import tempfile
 import time
 import yaml
 
+from keystoneclient import exceptions as keystone_exceptions
 from keystoneclient.v2_0 import client as keystone_client
 from keystoneclient.v3 import client as keystone_v3_client
-from keystoneclient import exceptions as keystone_exceptions
+if six.PY3:
+    from urllib import parse as urlparse
+else:
+    import urlparse
 
 
-def setup_logging():
+def setup_file_logging():
     logfilename = '/var/log/glance-simplestreams-sync.log'
 
     if not os.path.exists(logfilename):
@@ -60,10 +66,8 @@ def setup_logging():
     logger.setLevel('DEBUG')
     logger.addHandler(h)
 
-    return logger
 
-
-log = setup_logging()
+log = logging.getLogger()
 
 KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
@@ -94,6 +98,12 @@ SSTREAM_LOG_FILE = os.path.join(SSTREAM_SNAP_COMMON,
 
 CACERT_FILE = os.path.join(SSTREAM_SNAP_COMMON, 'cacert.pem')
 SYSTEM_CACERT_FILE = '/etc/ssl/certs/ca-certificates.crt'
+
+ENDPOINT_TYPES = [
+    'publicURL',
+    'adminURL',
+    'internalURL',
+]
 
 # TODOs:
 #   - allow people to specify their own policy, since they can specify
@@ -226,13 +236,15 @@ def set_openstack_env(id_conf, charm_conf):
         os.environ['OS_TENANT_NAME'] = id_conf['admin_tenant_name']
 
 
-def do_sync(charm_conf):
+def do_sync(ksc, charm_conf):
 
     # NOTE(beisner): the user_agent variable was an unused assignment (lint).
     # It may be worth re-visiting its usage, intent and benefit with the
     # UrlMirrorReader call below at some point.  Leaving it disabled for now,
     # and not assigning it since it is not currently utilized.
     # user_agent = charm_conf.get("user_agent")
+
+    region_name = charm_conf['region']
 
     for mirror_info in charm_conf['mirror_list']:
         # NOTE: output directory must be under HOME
@@ -241,7 +253,7 @@ def do_sync(charm_conf):
         try:
             log.info("Configuring sync for url {}".format(mirror_info))
             content_id = charm_conf['content_id_template'].format(
-                region=charm_conf['region'])
+                region=region_name)
 
             sync_command = [
                 "/snap/bin/simplestreams.sstream-mirror-glance",
@@ -284,43 +296,135 @@ def do_sync(charm_conf):
             ]
             sync_command += mirror_info['item_filters']
 
+            # Pass the current process' environment down along with proxy
+            # settings crafted for sstream-mirror-glance.
+            sstream_mirror_env = os.environ.copy()
+            sstream_mirror_env.update(get_sstream_mirror_proxy_env(
+                ksc, region_name,
+                charm_conf['ignore_proxy_for_object_store'],
+            ))
+
             log.info("calling sstream-mirror-glance")
-            log.debug("command: {}".format(" ".join(sync_command)))
-            subprocess.check_call(sync_command)
+            log.debug("command: %s", " ".join(sync_command))
+            log.debug("sstream-mirror environment: %s", sstream_mirror_env)
+            subprocess.check_call(sync_command, env=sstream_mirror_env)
 
             if not charm_conf['use_swift']:
                 # Sync output directory to APACHE_DATA_DIR
                 subprocess.check_call([
                     'rsync', '-avz',
-                    os.path.join(tmpdir, charm_conf['region'], 'streams'),
+                    os.path.join(tmpdir, region_name, 'streams'),
                     APACHE_DATA_DIR
                 ])
         finally:
             shutil.rmtree(tmpdir)
 
 
-def update_product_streams_service(ksc, services, region):
-    """
-    Updates URLs of product-streams endpoint to point to swift URLs.
-    """
+def get_sstream_mirror_proxy_env(ksc, region_name,
+                                 ignore_proxy_for_object_store=True):
+    '''Get proxy settings to be passed to sstreams-mirror-glance.
 
+    sstream-mirror-glance has multiple endpoints it needs to connect to:
+
+    1. Upstream image mirror (typically, an endpoint in public Internet);
+    2. Keystone (typically, a directly reachable endpoint);
+    3. Object storage (Swift) (typically a directly reachable endpoint).
+    4. Glance (typically, a directly reachable endpoint).
+
+    In a restricted environment where proxy settings have to be used for public
+    Internet connectivity we need to be explicit about hosts for which proxy
+    settings need to be used by sstream-mirror-glance. This function
+    dynamically builds a list of endpoints that need to be added to NO_PROXY
+    and optionally allows not including object storage endpoints into the
+    NO_PROXY list.
+
+    :param ksc: An instance of a Keystone client.
+    :type ksc: :class: `keystoneclient.v3.client.Client`
+    :param str region_name: A name of the region to retrieve endpoints for.
+    :param bool ignore_proxy_for_object_store: Do not include object-store
+                                               endpoints into NO_PROXY.
+    '''
+    proxy_settings = juju_proxy_settings()
+    if proxy_settings is None:
+        proxy_settings = {}
+        no_proxy_set = set()
+    else:
+        no_proxy_set = set(proxy_settings.get('NO_PROXY').split(','))
+    additional_hosts = set([
+        urlparse.urlparse(u).hostname for u in itertools.chain(
+            get_service_endpoints(ksc, 'identity', region_name).values(),
+            get_service_endpoints(ksc, 'image', region_name).values(),
+            get_service_endpoints(ksc, 'object-store', region_name).values()
+            if ignore_proxy_for_object_store else [],
+        )])
+    no_proxy = ','.join(no_proxy_set | additional_hosts)
+    proxy_settings['NO_PROXY'] = no_proxy
+    proxy_settings['no_proxy'] = no_proxy
+    return proxy_settings
+
+
+def update_product_streams_service(ksc, services, region):
+    """Updates URLs of product-streams endpoint to point to swift URLs."""
+    object_store_endpoints = get_service_endpoints(ksc, 'object-store', region)
+    for endpoint_type in ENDPOINT_TYPES:
+        object_store_endpoints[endpoint_type] += "/{}".format(SWIFT_DATA_DIR)
+
+    publicURL, internalURL, adminURL = (object_store_endpoints[t]
+                                        for t in ENDPOINT_TYPES)
+    # Update the relation to keystone to update the catalog URLs
+    update_endpoint_urls(
+        region,
+        publicURL,
+        internalURL,
+        adminURL,
+    )
+
+
+def get_service_endpoints(ksc, service_type, region_name):
+    """Get endpoints for a given service type from the Keystone catalog.
+
+    :param ksc: An instance of a Keystone client.
+    :type ksc: :class: `keystoneclient.v3.client.Client`
+    :param str service_type: An endpoint service type to use.
+    :param str region_name: A name of the region to retrieve endpoints for.
+    :raises :class: `keystone_exceptions.EndpointNotFound`
+    """
     try:
         catalog = {
             endpoint_type: ksc.service_catalog.url_for(
-                service_type='object-store', endpoint_type=endpoint_type)
+                service_type=service_type, endpoint_type=endpoint_type,
+                region_name=region_name)
             for endpoint_type in ['publicURL', 'internalURL', 'adminURL']}
-    except keystone_exceptions.EndpointNotFound as e:
-        log.warning("could not retrieve swift endpoint, not updating "
-                    "product-streams endpoint: {}".format(e))
+    except keystone_exceptions.EndpointNotFound:
+        log.error('could not retrieve any {} endpoints'.format(service_type))
         raise
+    return catalog
 
-    for endpoint_type in ['publicURL', 'internalURL']:
-        catalog[endpoint_type] += "/{}".format(SWIFT_DATA_DIR)
 
-    # Update the relation to keystone to update the catalog URLs
-    update_endpoint_urls(region, catalog['publicURL'],
-                         catalog['adminURL'],
-                         catalog['internalURL'])
+def juju_proxy_settings():
+    """Get proxy settings from Juju environment.
+
+    Get charm proxy settings from environment variables that correspond to
+    juju-http-proxy, juju-https-proxy juju-no-proxy (available as of 2.4.2, see
+    lp:1782236) or the legacy unprefixed settings.
+
+    :rtype: None | dict[str, str]
+    """
+    # Get proxy settings from the environment variables set by Juju.
+    juju_settings = {
+        m.groupdict()['var']: m.groupdict()['val']
+        for m in re.finditer(
+            '^((JUJU_CHARM_)?(?P<var>(HTTP|HTTPS|NO)_PROXY))=(?P<val>.*)$',
+            juju_run_cmd(['env']), re.MULTILINE)
+    }
+
+    proxy_settings = {}
+    for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'NO_PROXY']:
+        var_val = juju_settings.get(var)
+        if var_val:
+            proxy_settings[var] = var_val
+            proxy_settings[var.lower()] = var_val
+    return proxy_settings if proxy_settings else None
 
 
 def juju_run_cmd(cmd):
@@ -395,6 +499,7 @@ def main():
         log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
         sys.exit(0)
 
+    returncode = 0
     atexit.register(cleanup)
     lockfile.write(str(os.getpid()))
 
@@ -429,7 +534,7 @@ def main():
         log.info("Beginning image sync")
         status_set('maintenance', 'Synchronising images')
 
-        do_sync(charm_conf)
+        do_sync(ksc, charm_conf)
         ts = time.strftime("%x %X")
         # "Unit is ready" is one of approved message prefixes
         # Prefix the message with it will help zaza to understand the status.
@@ -447,12 +552,16 @@ def main():
         # not empty so we only match on this substring:
         if 'endpoint for image' in e.message:
             log.info("Glance endpoint not found, will continue polling.")
-    except Exception:
+            returncode = os.EX_UNAVAILABLE
+    except subprocess.CalledProcessError as e:
+        returncode = e.returncode
         log.exception("Exception during syncing:")
         status_set('blocked', 'Image sync failed, retrying soon.')
 
     log.info("sync done.")
+    return returncode
 
 
 if __name__ == "__main__":
-    main()
+    setup_file_logging()
+    sys.exit(main())
