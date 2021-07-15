@@ -174,6 +174,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     name_prefix=config['name_prefix'],
                     content_id_template=config['content_id_template'],
                     use_swift=config['use_swift'],
+                    ignore_proxy_for_object_store=config[
+                        'ignore_proxy_for_object_store'],
                     region=config['region'],
                     cloud_name=config['cloud_name'],
                     user_agent=config['user_agent'],
