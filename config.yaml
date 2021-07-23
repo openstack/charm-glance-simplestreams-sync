@@ -23,6 +23,13 @@ options:
       on a local Apache server running on the unit and endpoints will be
       registered referencing the local unit.  This does not support HA
       or TLS and is for testing purposes only.
+  ignore_proxy_for_object_store:
+      type: boolean
+      default: true
+      description: |
+          Controls whether Juju model proxy settings are going to be used
+          by sstream-mirror-glance when connecting to object-store endpoints
+          from the Keystone catalog.
   frequency:
     type: string
     default: "daily"
