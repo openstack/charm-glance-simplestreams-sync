@@ -118,3 +118,10 @@ options:
     type: string
     default: stable
     description: Snap channel to install simplestreams snap from
+  use-internal-endpoints:
+    type: boolean
+    default: False
+    description: |
+      OpenStack mostly defaults to using public endpoints for internal
+      communication between services. If set to True this option will
+      configure services to use internal endpoints where possible.

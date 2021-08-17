@@ -204,17 +204,24 @@ def get_keystone_client(api_version):
 
 def set_openstack_env(id_conf, charm_conf):
     version = 'v3' if str(id_conf['api_version']).startswith('3') else 'v2.0'
+    if id_conf.get('interface') == 'internal':
+        host = id_conf['internal_host']
+        port = id_conf['internal_port']
+        protocol = id_conf['internal_protocol']
+    else:
+        host = id_conf['service_host']
+        port = id_conf['service_port']
+        protocol = id_conf['service_protocol']
+
     auth_url = ("{protocol}://{host}:{port}/{version}"
-                .format(protocol=id_conf['service_protocol'],
-                        host=id_conf['service_host'],
-                        port=id_conf['service_port'],
-                        version=version))
+                .format(protocol=protocol, host=host,
+                        port=port, version=version))
     os.environ['OS_AUTH_URL'] = auth_url
     os.environ['OS_USERNAME'] = id_conf['admin_user']
     os.environ['OS_PASSWORD'] = id_conf['admin_password']
     os.environ['OS_REGION_NAME'] = charm_conf['region']
     ssl_ca = id_conf.get('ssl_ca', None)
-    if id_conf['service_protocol'] == 'https' and ssl_ca is not None:
+    if protocol == 'https' and ssl_ca is not None:
         os.environ['OS_CACERT'] = CACERT_FILE
         with open(CACERT_FILE, "wb") as f:
             f.write(base64.b64decode(ssl_ca))

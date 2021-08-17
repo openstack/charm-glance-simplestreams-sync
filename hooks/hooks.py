@@ -38,6 +38,7 @@ from charmhelpers.core import hookenv
 from charmhelpers.payload.execd import execd_preinstall
 
 from charmhelpers.contrib.openstack.context import (IdentityServiceContext,
+                                                    InternalEndpointContext,
                                                     OSContextGenerator)
 from charmhelpers.contrib.openstack.utils import (
     get_os_codename_package,
@@ -202,6 +203,7 @@ def get_configs():
 
     configs.register(MIRRORS_CONF_FILE_NAME, [MirrorsConfigServiceContext()])
     configs.register(ID_CONF_FILE_NAME, [SSLIdentityServiceContext(),
+                                         InternalEndpointContext(),
                                          UnitNameContext()])
     return configs
 

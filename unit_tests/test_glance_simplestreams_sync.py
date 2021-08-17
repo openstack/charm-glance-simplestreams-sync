@@ -405,3 +405,50 @@ JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
             side_effect=keystone_exceptions.EndpointNotFound('foo'))
 
         self.assertFalse(gss.is_object_store_present(ksc, 'TestRegion'))
+
+    @mock.patch('files.glance_simplestreams_sync.os')
+    def test_set_openstack_env_v3(self, mock_os):
+        mock_os.environ = dict()
+
+        id_conf = {
+            'api_version': '3',
+            'auth_host': 'auth-host.local',
+            'auth_port': '35357',
+            'auth_protocol': 'https',
+            'service_host': 'service-host.local',
+            'service_port': '5000',
+            'service_protocol': 'https',
+            'internal_host': 'internal-host.local',
+            'internal_port': '5000',
+            'internal_protocol': 'https',
+            'admin_tenant_id': 'admin-tenant-id',
+            'admin_tenant_name': 'services',
+            'admin_user': 'image-stream',
+            'admin_password': 'insecure',
+            'admin_domain_name': 'service_domain',
+            'unit_name': 'gss/0',
+        }
+        gss.set_openstack_env(id_conf, {'region': 'region-one'})
+
+        expected = {
+            'OS_AUTH_URL': 'https://service-host.local:5000/v3',
+            'OS_USERNAME': 'image-stream',
+            'OS_PASSWORD': 'insecure',
+            'OS_REGION_NAME': 'region-one',
+            'OS_USER_DOMAIN_NAME': 'service_domain',
+            'OS_PROJECT_ID': 'admin-tenant-id',
+            'OS_PROJECT_NAME': 'services',
+            'OS_PROJECT_DOMAIN_NAME': 'service_domain',
+
+        }
+        self.assertEqual(expected, mock_os.environ)
+
+        # Configure to use internal endpoints
+        id_conf['interface'] = 'internal'
+        gss.set_openstack_env(id_conf, {'region': 'region-one'})
+
+        expected['OS_AUTH_URL'] = 'https://internal-host.local:5000/v3'
+        expected['OS_INTERFACE'] = 'internal'
+        expected['OS_ENDPOINT_TYPE'] = 'internal'
+
+        self.assertEqual(expected, mock_os.environ)
