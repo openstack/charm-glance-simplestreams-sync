@@ -310,8 +310,14 @@ def install():
 
     apt_install(_packages)
 
-    snap_install('simplestreams',
-                 *['--channel={}'.format(hookenv.config('snap-channel'))])
+    snap = 'simplestreams'
+    res_path = _resource_get(snap)
+    if res_path is None:
+        snap_install(snap,
+                     *['--channel={}'.format(hookenv.config('snap-channel'))])
+    else:
+        snap_install(res_path,
+                     *['--dangerous'])
 
     install_gss_wrappers()
 
@@ -409,6 +415,19 @@ def certs_changed(relation_id=None, unit=None):
     configs = get_configs()
     configs.write_all()
     identity_service_changed()
+
+
+def _resource_get(snapname):
+    """Used to fetch the resource path of the given name.
+
+    This wrapper obtains a resource path and adds an additional
+    check to return False if the resource is zero length.
+    """
+    res_path = hookenv.resource_get(snapname)
+    if res_path and os.stat(res_path).st_size != 0:
+        return res_path
+
+    return None
 
 
 if __name__ == '__main__':

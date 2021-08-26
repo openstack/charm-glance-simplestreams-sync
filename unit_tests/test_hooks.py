@@ -105,3 +105,14 @@ class TestConfigChanged(CharmTestCase):
                                             hooks.CRON_JOB_FILENAME))
         remove.assert_any_call(hooks.CRON_POLL_FILEPATH)
         update_nrpe_config.assert_called()
+
+    @mock.patch("charmhelpers.core.hookenv.resource_get")
+    @mock.patch("os.stat")
+    def test_resource_get_simplestreams(self, mock_os_stat, mock_resource_get):
+        mock_path = "/tmp/file"
+        mock_resource_get.return_value = mock_path
+        mock_os_stat.return_value.st_size = 100
+        self.assertEqual(hooks._resource_get('simplestreams'), mock_path)
+
+        mock_os_stat.return_value.st_size = 0
+        self.assertEqual(hooks._resource_get('simplestreams'), None)

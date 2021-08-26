@@ -70,6 +70,16 @@ Juju [actions][juju-docs-actions] allow specific operations to be performed on
 a per-unit basis. This charm supports the single action `sync-images`, which
 allows for a one-time image sync from the currently configured mirror list.
 
+## Juju resources
+
+The charm support juju resources, which is handy in offline deployments. Prefetch the snaps:
+
+    snap download --channel=stable simplestreams
+
+Provide downloaded snaps as resources to the application:
+
+    juju deploy cs:glance-simplestreams-sync --resource simplestreams=simplestreams_27.snap
+
 # Bugs
 
 Please report bugs on [Launchpad][lp-bugs-charm-glance-simplestreams-sync].

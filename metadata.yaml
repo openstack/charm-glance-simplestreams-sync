@@ -29,3 +29,8 @@ requires:
     interface: keystone
   certificates:
     interface: tls-certificates
+resources:
+  simplestreams:
+    type: file
+    filename: simplestreams.snap
+    description: simplestreams snap
