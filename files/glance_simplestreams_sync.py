@@ -274,6 +274,7 @@ def do_sync(ksc, charm_conf):
                     SWIFT_DATA_DIR
                 ]
             else:
+                # For debugging purposes only.
                 sync_command += [
                     "--output-dir",
                     tmpdir
@@ -308,14 +309,6 @@ def do_sync(ksc, charm_conf):
             log.debug("command: %s", " ".join(sync_command))
             log.debug("sstream-mirror environment: %s", sstream_mirror_env)
             subprocess.check_call(sync_command, env=sstream_mirror_env)
-
-            if not charm_conf['use_swift']:
-                # Sync output directory to APACHE_DATA_DIR
-                subprocess.check_call([
-                    'rsync', '-avz',
-                    os.path.join(tmpdir, region_name, 'streams'),
-                    APACHE_DATA_DIR
-                ])
         finally:
             shutil.rmtree(tmpdir)
 
@@ -354,7 +347,7 @@ def get_sstream_mirror_proxy_env(ksc, region_name,
         urlparse.urlparse(u).hostname for u in itertools.chain(
             get_service_endpoints(ksc, 'identity', region_name).values(),
             get_service_endpoints(ksc, 'image', region_name).values(),
-            get_service_endpoints(ksc, 'object-store', region_name).values()
+            get_object_store_endpoints(ksc, region_name)
             if ignore_proxy_for_object_store else [],
         )])
     no_proxy = ','.join(no_proxy_set | additional_hosts)
@@ -380,6 +373,26 @@ def update_product_streams_service(ksc, services, region):
     )
 
 
+def get_object_store_endpoints(ksc, region_name):
+    """Get object-store endpoints from the service catalog.
+
+    The lack of those endpoints is not fatal for the purposes of this script
+    since a deployment may not have those in which case glance would still
+    be populated with images but metadata would not have a place to be stored.
+
+    :param ksc: An instance of a Keystone client.
+    :type ksc: :class: `keystoneclient.v3.client.Client`
+    :param str region_name: A name of the region to retrieve endpoints for.
+    """
+    endpoints = []
+    try:
+        endpoints = list(get_service_endpoints(ksc, 'object-store',
+                                               region_name).values())
+    except keystone_exceptions.EndpointNotFound:
+        log.debug('object-store endpoints are not present')
+    return endpoints
+
+
 def get_service_endpoints(ksc, service_type, region_name):
     """Get endpoints for a given service type from the Keystone catalog.
 
@@ -396,6 +409,9 @@ def get_service_endpoints(ksc, service_type, region_name):
                 region_name=region_name)
             for endpoint_type in ['publicURL', 'internalURL', 'adminURL']}
     except keystone_exceptions.EndpointNotFound:
+        # EndpointNotFound is raised for the case where a service does not
+        # exist as well as for the case where the service exists but not
+        # endpoints.
         log.error('could not retrieve any {} endpoints'.format(service_type))
         raise
     return catalog
@@ -487,6 +503,43 @@ def cleanup():
             raise e
 
 
+def set_active_status(is_object_store_present_and_used):
+    """Get object-store endpoints from the service catalog.
+
+    The lack of those endpoints is not fatal for the purposes of this script
+    since a deployment may not have those in which case glance would still
+    be populated with images but metadata would not have a place to be stored.
+    """
+    ts = time.strftime("%x %X")
+    # "Unit is ready" is one of approved message prefixes
+    # Prefix the message with it will help zaza to understand the status.
+    if is_object_store_present_and_used:
+        status_set('active', 'Unit is ready (Glance sync completed at {},'
+                   ' metadata uploaded to object store)'.format(ts))
+    else:
+        status_set('active', 'Unit is ready (Glance sync completed at {},'
+                   ' metadata not uploaded - object-store usage disabled)'
+                   ''.format(ts))
+
+
+def assess_object_store_state(object_store_exists, object_store_requested):
+    """Decide whether object store"""
+    if object_store_requested and not object_store_exists:
+        # If use_swift is set, we need to wait for swift to become
+        # available.
+        msg = ('Swift usage has been requested but'
+               ' its endpoints are not yet in the catalog')
+        status_set('maintenance', msg)
+        log.info(msg)
+        return False
+    return True
+
+
+def is_object_store_present(ksc, region_name):
+    """Checks whether object store is present (service & endpoints)."""
+    return len(get_object_store_endpoints(ksc, region_name)) > 0
+
+
 def main():
 
     log.info("glance-simplestreams-sync started.")
@@ -507,27 +560,28 @@ def main():
 
     set_openstack_env(id_conf, charm_conf)
 
+    region_name = charm_conf['region']
     ksc = get_keystone_client(id_conf['api_version'])
     services = [s._info for s in ksc.services.list()]
     servicenames = [s['name'] for s in services]
     ps_service_exists = PRODUCT_STREAMS_SERVICE_NAME in servicenames
-    swift_exists = 'swift' in servicenames
 
+    object_store_present = is_object_store_present(ksc, region_name)
+
+    use_swift = charm_conf['use_swift']
     log.info("ps_service_exists={}, charm_conf['use_swift']={}"
-             ", swift_exists={}".format(ps_service_exists,
-                                        charm_conf['use_swift'],
-                                        swift_exists))
+             ", object_store_present={}".format(ps_service_exists,
+                                                use_swift,
+                                                object_store_present))
 
     try:
-        if not swift_exists and charm_conf['use_swift']:
-            # If use_swift is set, we need to wait for swift to become
-            # available.
-            log.info("Swift not yet ready.")
+        if not assess_object_store_state(object_store_present, use_swift):
             return
 
-        if ps_service_exists and charm_conf['use_swift'] and swift_exists:
+        is_object_store_present_and_used = use_swift and object_store_present
+        if ps_service_exists and is_object_store_present_and_used:
             log.info("Updating product streams service.")
-            update_product_streams_service(ksc, services, charm_conf['region'])
+            update_product_streams_service(ksc, services, region_name)
         else:
             log.info("Not updating product streams service.")
 
@@ -535,10 +589,7 @@ def main():
         status_set('maintenance', 'Synchronising images')
 
         do_sync(ksc, charm_conf)
-        ts = time.strftime("%x %X")
-        # "Unit is ready" is one of approved message prefixes
-        # Prefix the message with it will help zaza to understand the status.
-        status_set('active', "Unit is ready (Sync completed at {})".format(ts))
+        set_active_status(is_object_store_present_and_used)
 
         # If this is an initial per-minute sync attempt, delete it on success.
         if os.path.exists(CRON_POLL_FILENAME):

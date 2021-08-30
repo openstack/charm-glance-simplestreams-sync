@@ -111,6 +111,7 @@ relations:
   - ['glance-simplestreams-sync:identity-service', 'keystone:identity-service']
   - ['keystone:shared-db','keystone-mysql-router:shared-db']
   - ['glance:shared-db','glance-mysql-router:shared-db']
+  - ['glance:ceph', 'ceph-mon:client']
   - ['vault:shared-db','vault-mysql-router:shared-db']
   - ['keystone-mysql-router:db-router','mysql-innodb-cluster:db-router']
   - ['glance-mysql-router:db-router','mysql-innodb-cluster:db-router']

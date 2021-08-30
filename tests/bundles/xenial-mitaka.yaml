@@ -27,6 +27,7 @@ relations:
   - ['vault:shared-db', 'mysql:shared-db']
   - ['keystone:shared-db', 'mysql:shared-db']
   - ['glance:shared-db', 'mysql:shared-db']
+  - ['glance:ceph', 'ceph-mon:client']
   - ['keystone:certificates', 'vault:certificates']
   - ['glance:certificates', 'vault:certificates']
   - ['glance-simplestreams-sync:certificates', 'vault:certificates']

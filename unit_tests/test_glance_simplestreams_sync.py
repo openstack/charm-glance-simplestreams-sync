@@ -174,6 +174,63 @@ JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
         self.assertEqual(set(proxy_env['no_proxy'].split(',')),
                          no_proxy_set_no_obj)
 
+    @mock.patch('files.glance_simplestreams_sync.get_service_endpoints')
+    @mock.patch('files.glance_simplestreams_sync.juju_proxy_settings')
+    def test_get_sstream_mirror_proxy_env_no_object_store(
+            self, juju_proxy_settings, get_service_endpoints):
+        # Use a side effect instead of return value to avoid modification of
+        # the same dict in different invocations of the tested function.
+        def juju_proxy_settings_side_effect():
+            return {
+                "HTTP_PROXY": "http://squid.internal:3128",
+                "HTTPS_PROXY": "https://squid.internal:3128",
+                "NO_PROXY": "127.0.0.1,localhost,::1",
+                "http_proxy": "http://squid.internal:3128",
+                "https_proxy": "https://squid.internal:3128",
+                "no_proxy": "127.0.0.1,localhost,::1",
+            }
+
+        juju_proxy_settings.side_effect = juju_proxy_settings_side_effect
+
+        def get_service_endpoints_side_effect(ksc, service_type, region_name):
+            if service_type == 'object-store':
+                raise keystone_exceptions.EndpointNotFound('foo')
+            return {
+                'identity': {
+                    'publicURL': 'https://192.0.2.42:5000/v3',
+                    'internalURL': 'https://192.0.2.43:5000/v3',
+                    'adminURL': 'https://192.0.2.44:35357/v3',
+                },
+                'image': {
+                    'publicURL': 'https://192.0.2.45:9292',
+                    'internalURL': 'https://192.0.2.45:9292',
+                    'adminURL': 'https://192.0.2.47:9292',
+                },
+            }[service_type]
+
+        get_service_endpoints.side_effect = get_service_endpoints_side_effect
+        for proxy_env in [
+                gss.get_sstream_mirror_proxy_env(
+                    mock.MagicMock(), 'TestRegion'),
+                gss.get_sstream_mirror_proxy_env(
+                    mock.MagicMock(), 'TestRegion',
+                    ignore_proxy_for_object_store=True)]:
+            self.assertEqual(proxy_env['HTTP_PROXY'],
+                             'http://squid.internal:3128')
+            self.assertEqual(proxy_env['http_proxy'],
+                             'http://squid.internal:3128')
+            self.assertEqual(proxy_env['HTTPS_PROXY'],
+                             'https://squid.internal:3128')
+            self.assertEqual(proxy_env['https_proxy'],
+                             'https://squid.internal:3128')
+            no_proxy_set = set(['127.0.0.1', 'localhost', '::1', '192.0.2.42',
+                                '192.0.2.43', '192.0.2.44', '192.0.2.45',
+                                '192.0.2.47'])
+            self.assertEqual(set(proxy_env['NO_PROXY'].split(',')),
+                             no_proxy_set)
+            self.assertEqual(set(proxy_env['no_proxy'].split(',')),
+                             no_proxy_set)
+
     def test_get_service_endpoints(self):
 
         def url_for_side_effect(service_type, endpoint_type, region_name):
@@ -222,7 +279,129 @@ JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
         )
 
         ksc.service_catalog.url_for.side_effect = mock.MagicMock(
-            side_effect=keystone_exceptions.EndpointException('foo'))
+            side_effect=keystone_exceptions.EndpointNotFound('foo'))
 
-        with self.assertRaises(keystone_exceptions.EndpointException):
+        with self.assertRaises(keystone_exceptions.EndpointNotFound):
             gss.get_service_endpoints(ksc, 'test', 'TestRegion')
+
+    def test_get_object_store_endpoints(self):
+
+        def url_for_side_effect(service_type, endpoint_type, region_name):
+            return {
+                'TestRegion': {
+                    'identity': {
+                        'publicURL': 'https://10.5.2.42:443/swift/v1',
+                        'internalURL': 'https://10.5.2.42:443/swift/v1',
+                        'adminURL': 'https://10.5.2.42:443/swift/v1',
+                    },
+                    'image': {
+                        'publicURL': 'https://10.5.2.43:443/swift/v1',
+                        'internalURL': 'https://10.5.2.43:443/swift/v1',
+                        'adminURL': 'https://10.5.2.43:443/swift/v1',
+                    },
+                    'object-store': {
+                        'publicURL': 'https://10.5.2.44:443/swift/v1',
+                        'internalURL': 'https://10.5.2.44:443/swift/v1',
+                        'adminURL': 'https://10.5.2.44:443/swift/v1',
+                    },
+                }
+            }[region_name][service_type][endpoint_type]
+
+        ksc = mock.MagicMock()
+        ksc.service_catalog.url_for.side_effect = url_for_side_effect
+        self.assertEqual(
+            gss.get_object_store_endpoints(ksc, 'TestRegion'),
+            ['https://10.5.2.44:443/swift/v1',
+             'https://10.5.2.44:443/swift/v1',
+             'https://10.5.2.44:443/swift/v1']
+        )
+
+        ksc.service_catalog.url_for.side_effect = mock.MagicMock(
+            side_effect=keystone_exceptions.EndpointNotFound('foo'))
+
+        self.assertEqual(gss.get_object_store_endpoints(ksc, 'TestRegion'), [])
+
+    @mock.patch('time.strftime')
+    @mock.patch('files.glance_simplestreams_sync.status_set')
+    def test_set_active_status(self, _status_set, _strftime):
+        _status_set.return_value = None
+        _strftime.return_value = '42'
+        gss.set_active_status(is_object_store_present_and_used=True)
+        _status_set.assert_called_once_with(
+            'active',
+            'Unit is ready (Glance sync completed at 42,'
+            ' metadata uploaded to object store)'
+        )
+
+        _status_set.reset_mock()
+
+        gss.set_active_status(is_object_store_present_and_used=False)
+        _status_set.assert_called_once_with(
+            'active',
+            'Unit is ready (Glance sync completed at 42,'
+            ' metadata not uploaded - object-store usage disabled)'
+        )
+
+    @mock.patch('files.glance_simplestreams_sync.status_set')
+    def test_assess_object_store_state(self, _status_set):
+        self.assertTrue(
+            gss.assess_object_store_state(object_store_exists=True,
+                                          object_store_requested=False))
+        _status_set.assert_not_called()
+        _status_set.reset_mock()
+
+        self.assertTrue(
+            gss.assess_object_store_state(object_store_exists=True,
+                                          object_store_requested=True))
+        _status_set.assert_not_called()
+        _status_set.reset_mock()
+
+        self.assertTrue(
+            gss.assess_object_store_state(object_store_exists=False,
+                                          object_store_requested=False))
+        _status_set.assert_not_called()
+        _status_set.reset_mock()
+
+        self.assertFalse(
+            gss.assess_object_store_state(object_store_exists=False,
+                                          object_store_requested=True))
+        _status_set.assert_called_once_with(
+            'maintenance',
+            'Swift usage has been requested but its endpoints are not yet in'
+            ' the catalog'
+        )
+        _status_set.reset_mock()
+
+    def test_is_object_store_present(self):
+
+        def url_for_side_effect(service_type, endpoint_type, region_name):
+            return {
+                'TestRegion': {
+                    'identity': {
+                        'publicURL': 'https://10.5.2.42:443/swift/v1',
+                        'internalURL': 'https://10.5.2.42:443/swift/v1',
+                        'adminURL': 'https://10.5.2.42:443/swift/v1',
+                    },
+                    'image': {
+                        'publicURL': 'https://10.5.2.43:443/swift/v1',
+                        'internalURL': 'https://10.5.2.43:443/swift/v1',
+                        'adminURL': 'https://10.5.2.43:443/swift/v1',
+                    },
+                    'object-store': {
+                        'publicURL': 'https://10.5.2.44:443/swift/v1',
+                        'internalURL': 'https://10.5.2.44:443/swift/v1',
+                        'adminURL': 'https://10.5.2.44:443/swift/v1',
+                    },
+                }
+            }[region_name][service_type][endpoint_type]
+
+        ksc = mock.MagicMock()
+        ksc.service_catalog.url_for.side_effect = url_for_side_effect
+
+        self.assertTrue(gss.is_object_store_present(ksc, 'TestRegion'))
+
+        # Endpoints not found or service not present at all.
+        ksc.service_catalog.url_for.side_effect = mock.MagicMock(
+            side_effect=keystone_exceptions.EndpointNotFound('foo'))
+
+        self.assertFalse(gss.is_object_store_present(ksc, 'TestRegion'))
