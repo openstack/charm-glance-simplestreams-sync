@@ -297,8 +297,8 @@ def install():
 
     _packages = PACKAGES
     if not hookenv.config("use_swift"):
-        hookenv.log('Configuring for local hosting of product stream.')
-        _packages += ["apache2"]
+        hookenv.log('Swift usage was disabled explicitly: not setting up'
+                    ' streams metadata')
 
     if CompareHostReleases(lsb_release()['DISTRIB_CODENAME']) >= 'disco':
         _packages = [pkg for pkg in _packages if not pkg.startswith('python-')]

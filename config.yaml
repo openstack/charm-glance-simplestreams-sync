@@ -17,12 +17,9 @@ options:
     type: boolean
     default: True
     description: >
-      DEPRECATED FOR REMOVAL
-      Should the charm set up the product-streams endpoint with swift's URLs?
-      If this value is set to False, product-streams metadata will be hosted
-      on a local Apache server running on the unit and endpoints will be
-      registered referencing the local unit.  This does not support HA
-      or TLS and is for testing purposes only.
+        Controls whether swift will be used for image metadata storage
+        or not. If set to False, image metadata will not be written to
+        object store while images will still be synced to Glance.
   ignore_proxy_for_object_store:
       type: boolean
       default: true
