@@ -299,6 +299,10 @@ def do_sync(ksc, charm_conf):
                         '--custom-property',
                         custom_property
                     ]
+            if charm_conf.get('image_import_conversion', False):
+                sync_command += [
+                    '--image-import-conversion'
+                ]
 
             if charm_conf.get('set_latest_property', False):
                 sync_command += [

@@ -138,3 +138,9 @@ options:
       OpenStack mostly defaults to using public endpoints for internal
       communication between services. If set to True this option will
       configure services to use internal endpoints where possible.
+  image_import_conversion:
+    type: boolean
+    default: False
+    description: |
+      Enable conversion of images to raw format when uploading images to Glance.
+      Only supported when "image_conversion" is enabled in Glance.

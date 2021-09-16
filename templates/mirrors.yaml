@@ -9,6 +9,7 @@ region: {{ region }}
 cloud_name: {{ cloud_name }}
 content_id_template: {{ content_id_template }}
 hypervisor_mapping: {{ hypervisor_mapping }}
+image_import_conversion: {{ image_import_conversion }}
 {% if custom_properties %}
 custom_properties: {{ custom_properties }}
 {% endif %}
