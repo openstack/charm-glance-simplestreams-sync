@@ -12,18 +12,21 @@ gate_bundles:
   - bionic-train
   - bionic-ussuri
   - focal-ussuri
-  - focal-victoria
   - focal-wallaby
-  - groovy-victoria
+  - focal-xena
+  - hirsute-wallaby
 
 dev_bundles:
   - xenial-queens
   - bionic-rocky
-  - hirsute-wallaby
+  - focal-victoria
+  - groovy-victoria
+  - impish-xena
 
 tests_options:
   force_deploy:
-   - hirsute-wallaby
+    - groovy-victoria
+    - impish-xena
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle

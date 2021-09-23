@@ -11,8 +11,11 @@
       - focal-ussuri
       - focal-victoria
       - focal-wallaby
-      - groovy-victoria
-    experimental:
-      jobs:
+      - focal-xena:
+          voting: false
+      # hirsuite-wallaby disabled due to:
       # https://bugs.launchpad.net/charm-ceph-osd/+bug/1929732
-      - hirsute-wallaby
+      - hirsute-wallaby:
+          voting: false
+      - impish-xena:
+          voting: false
