@@ -40,43 +40,48 @@ relations:
 
 applications:
   mysql:
-    charm: cs:~openstack-charmers-next/percona-cluster
+    charm: cs:~openstack-charmers/percona-cluster
     num_units: 1
     to:
       - '0'
+    channel: candidate
   vault:
-    charm: cs:~openstack-charmers-next/vault
+    charm: cs:~openstack-charmers/vault
     num_units: 1
     to:
       - '1'
+    channel: candidate
   keystone:
-    charm: cs:~openstack-charmers-next/keystone
+    charm: cs:~openstack-charmers/keystone
     num_units: 1
     options:
       openstack-origin: *source
     to:
       - '2'
+    channel: candidate
   glance:
-    charm: cs:~openstack-charmers-next/glance
+    charm: cs:~openstack-charmers/glance
     num_units: 1
     options:
       openstack-origin: *source
     to:
       - '3'
+    channel: candidate
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync
     num_units: 1
     to:
       - '4'
   ceph-radosgw:
-    charm: cs:~openstack-charmers-next/ceph-radosgw
+    charm: cs:~openstack-charmers/ceph-radosgw
     num_units: 1
     options:
       source: *source
     to:
       - '5'
+    channel: candidate
   ceph-osd:
-    charm: cs:~openstack-charmers-next/ceph-osd
+    charm: cs:~openstack-charmers/ceph-osd
     num_units: 3
     storage:
       osd-devices: 'cinder,10G'
@@ -86,8 +91,9 @@ applications:
       - '6'
       - '7'
       - '8'
+    channel: candidate
   ceph-mon:
-    charm: cs:~openstack-charmers-next/ceph-mon
+    charm: cs:~openstack-charmers/ceph-mon
     num_units: 3
     options:
       source: *source
@@ -95,3 +101,4 @@ applications:
       - '9'
       - '10'
       - '11'
+    channel: candidate
