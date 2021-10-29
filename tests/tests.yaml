@@ -6,27 +6,29 @@ comment:
 # functest-run-suite ...
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
-  - xenial-mitaka
   - bionic-queens
   - bionic-stein
-  - bionic-train
   - bionic-ussuri
   - focal-ussuri
+  - focal-victoria
   - focal-wallaby
   - focal-xena
   - hirsute-wallaby
+  - impish-xena
 
 dev_bundles:
+  - xenial-mitaka
   - xenial-queens
   - bionic-rocky
-  - focal-victoria
-  - groovy-victoria
-  - impish-xena
+  - bionic-train
+  - focal-yoga
+  - jammy-yoga
 
 tests_options:
   force_deploy:
-    - groovy-victoria
+    - hirsute-wallaby
     - impish-xena
+    - jammy-yoga
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle

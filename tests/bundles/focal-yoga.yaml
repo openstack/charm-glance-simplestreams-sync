@@ -1,7 +1,7 @@
 variables:
-  source: &source distro
+  source: &source cloud:focal-yoga
 
-series: groovy
+series: focal
 
 comment:
   - 'machines section to decide order of deployment. database sooner = faster'

@@ -11,11 +11,14 @@
       - focal-ussuri
       - focal-victoria
       - focal-wallaby
-      - focal-xena:
+      - focal-xena
+      - focal-yoga:
           voting: false
       # hirsuite-wallaby disabled due to:
       # https://bugs.launchpad.net/charm-ceph-osd/+bug/1929732
       - hirsute-wallaby:
           voting: false
       - impish-xena:
+          voting: false
+      - jammy-yoga:
           voting: false
