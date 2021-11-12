@@ -8,7 +8,6 @@ tags:
 - misc
 - openstack
 series:
-- xenial
 - bionic
 - focal
 - groovy
