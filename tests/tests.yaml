@@ -17,8 +17,6 @@ gate_bundles:
   - impish-xena
 
 dev_bundles:
-  - xenial-mitaka
-  - xenial-queens
   - bionic-rocky
   - bionic-train
   - focal-yoga

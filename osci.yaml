@@ -1,24 +1,10 @@
 - project:
     templates:
-      - charm-unit-jobs
-    check:
-      jobs:
-      - xenial-mitaka
-      - bionic-queens
-      - bionic-stein
-      - bionic-train
-      - bionic-ussuri
-      - focal-ussuri
-      - focal-victoria
-      - focal-wallaby
-      - focal-xena
-      - focal-yoga:
-          voting: false
-      # hirsuite-wallaby disabled due to:
-      # https://bugs.launchpad.net/charm-ceph-osd/+bug/1929732
-      - hirsute-wallaby:
-          voting: false
-      - impish-xena:
-          voting: false
-      - jammy-yoga:
-          voting: false
+      - charm-yoga-unit-jobs
+      - charm-yoga-functional-jobs
+      - charm-xena-functional-jobs
+      - charm-wallaby-functional-jobs
+      - charm-victoria-functional-jobs
+      - charm-ussuri-functional-jobs
+      - charm-stein-functional-jobs
+      - charm-queens-functional-jobs
