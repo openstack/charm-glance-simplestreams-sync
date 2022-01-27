@@ -8,10 +8,7 @@ tags:
 - misc
 - openstack
 series:
-- bionic
 - focal
-- groovy
-- hirsute
 - impish
 subordinate: false
 provides:
