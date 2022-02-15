@@ -63,7 +63,7 @@ applications:
       openstack-origin: *source
     to:
       - '4'
-    channel: latest/edge
+    channel: yoga/edge
 
   glance:
     charm: ch:glance
@@ -72,10 +72,10 @@ applications:
       openstack-origin: *source
     to:
       - '5'
-    channel: latest/edge
+    channel: yoga/edge
 
   glance-simplestreams-sync:
-    charm: ../../glance-simplestreams-sync
+    charm: ../../glance-simplestreams-sync.charm
     num_units: 1
     to:
       - '6'
@@ -87,7 +87,7 @@ applications:
       source: *source
     to:
       - '7'
-    channel: latest/edge
+    channel: quincy/edge
 
   ceph-osd:
     charm: ch:ceph-osd
@@ -100,7 +100,7 @@ applications:
       - '8'
       - '9'
       - '10'
-    channel: latest/edge
+    channel: quincy/edge
 
   ceph-mon:
     charm: ch:ceph-mon
@@ -111,7 +111,7 @@ applications:
       - '11'
       - '12'
       - '13'
-    channel: latest/edge
+    channel: quincy/edge
 
 relations:
   - ['keystone:certificates', 'vault:certificates']

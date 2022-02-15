@@ -5,6 +5,7 @@ tags
 .testrepository
 *.sw[nop]
 *.pyc
+*.charm
 .unit-state.db
 tests/*.img
 .idea
