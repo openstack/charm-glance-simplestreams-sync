@@ -1,3 +1,5 @@
+local_overlay_enabled: False
+
 variables:
   source: &source cloud:focal-wallaby
 
@@ -29,14 +31,17 @@ machines:
 applications:
 
   keystone-mysql-router:
-    charm: cs:~openstack-charmers/mysql-router
+    charm: ch:mysql-router
+    channel: 8.0.19/edge
   glance-mysql-router:
-    charm: cs:~openstack-charmers/mysql-router
+    charm: ch:mysql-router
+    channel: 8.0.19/edge
   vault-mysql-router:
-    charm: cs:~openstack-charmers/mysql-router
+    charm: ch:mysql-router
+    channel: 8.0.19/edge
 
   mysql-innodb-cluster:
-    charm: cs:~openstack-charmers/mysql-innodb-cluster
+    charm: ch:mysql-innodb-cluster
     num_units: 3
     options:
       source: *source
@@ -44,45 +49,50 @@ applications:
       - '0'
       - '1'
       - '2'
+    channel: 8.0.19/edge
 
   vault:
-    charm: cs:~openstack-charmers/vault
+    charm: ch:vault
     num_units: 1
     to:
       - '3'
+    channel: 1.7/edge
 
   keystone:
-    charm: cs:~openstack-charmers/keystone
+    charm: ch:keystone
     num_units: 1
     options:
       openstack-origin: *source
     to:
       - '4'
+    channel: xena/edge
 
   glance:
-    charm: cs:~openstack-charmers/glance
+    charm: ch:glance
     num_units: 1
     options:
       openstack-origin: *source
     to:
       - '5'
+    channel: xena/edge
 
   glance-simplestreams-sync:
-    charm: ../../glance-simplestreams-sync
+    charm: ../../glance-simplestreams-sync.charm
     num_units: 1
     to:
       - '6'
 
   ceph-radosgw:
-    charm: cs:~openstack-charmers/ceph-radosgw
+    charm: ch:ceph-radosgw
     num_units: 1
     options:
       source: *source
     to:
       - '7'
+    channel: pacific/edge
 
   ceph-osd:
-    charm: cs:~openstack-charmers/ceph-osd
+    charm: ch:ceph-osd
     num_units: 3
     storage:
       osd-devices: 'cinder,10G'
@@ -92,9 +102,10 @@ applications:
       - '8'
       - '9'
       - '10'
+    channel: pacific/edge
 
   ceph-mon:
-    charm: cs:~openstack-charmers/ceph-mon
+    charm: ch:ceph-mon
     num_units: 3
     options:
       source: *source
@@ -102,6 +113,7 @@ applications:
       - '11'
       - '12'
       - '13'
+    channel: pacific/edge
 
 relations:
   - ['keystone:certificates', 'vault:certificates']
