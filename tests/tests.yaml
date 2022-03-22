@@ -9,12 +9,10 @@ gate_bundles:
   - focal-wallaby
   - focal-xena
 
-dev_bundles:
-  - impish-xena
+dev_bundles: []
 
 tests_options:
-  force_deploy:
-    - impish-xena
+  force_deploy: []
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle
