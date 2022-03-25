@@ -5,6 +5,7 @@ include:
     - fetch
     - osplatform
     - payload
+    - contrib.hardware.pci
     - contrib.openstack|inc=*
     - contrib.charmsupport
     - contrib.network.ip

@@ -9,7 +9,7 @@ tags:
 - openstack
 series:
 - focal
-- impish
+- jammy
 subordinate: false
 provides:
   simplestreams-image-service:
