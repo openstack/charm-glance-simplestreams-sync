@@ -81,7 +81,7 @@ SYNC_RUNNING_FLAG_FILE_NAME = os.path.join(PID_FILE_DIR,
 # juju looks in simplestreams/data/* in swift to figure out which
 # images to deploy, so this path isn't really configurable even though
 # it is.
-SWIFT_DATA_DIR = 'simplestreams/data/'
+SWIFT_DATA_DIR = 'simplestreams/data'
 
 # When running local apache for product-streams use path to place indexes.
 APACHE_DATA_DIR = '/var/www/html'
@@ -278,7 +278,7 @@ def do_sync(ksc, charm_conf):
             if charm_conf['use_swift']:
                 sync_command += [
                     '--output-swift',
-                    SWIFT_DATA_DIR
+                    "{}/".format(SWIFT_DATA_DIR)
                 ]
             else:
                 # For debugging purposes only.
