@@ -6,33 +6,19 @@ comment:
 # functest-run-suite ...
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
-  - xenial-mitaka
-  - bionic-queens
-  - bionic-stein
-  - bionic-train
-  - bionic-ussuri
-  - focal-ussuri
-  - focal-wallaby
-  - focal-xena
-  - hirsute-wallaby
-
-dev_bundles:
-  - xenial-queens
-  - bionic-rocky
   - focal-victoria
-  - groovy-victoria
-  - impish-xena
+  - focal-wallaby
+
+dev_bundles: []
 
 tests_options:
   force_deploy:
-    - groovy-victoria
-    - impish-xena
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle
 # smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
 smoke_bundles:
-  - focal-ussuri
+  - focal-wallaby
 
 # special target deploy status for above deploy phase
 target_deploy_status:
