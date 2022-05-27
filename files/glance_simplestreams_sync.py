@@ -299,6 +299,14 @@ def do_sync(ksc, charm_conf):
                         custom_property
                     ]
 
+            # --visibility is relatively new so use it only when the
+            # default value is modified for backward compatibility
+            if charm_conf['visibility'] != "public":
+                sync_command += [
+                    "--visibility",
+                    charm_conf['visibility'],
+                ]
+
             sync_command += [
                 mirror_info['url'],
             ]

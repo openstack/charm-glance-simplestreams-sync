@@ -173,6 +173,7 @@ class MirrorsConfigServiceContext(OSContextGenerator):
         return dict(mirror_list=config['mirror_list'],
                     modify_hook_scripts=', '.join(modify_hook_scripts),
                     name_prefix=config['name_prefix'],
+                    visibility=config['visibility'],
                     content_id_template=config['content_id_template'],
                     use_swift=config['use_swift'],
                     ignore_proxy_for_object_store=config[
