@@ -49,6 +49,12 @@ options:
     type: string
     default: "auto-sync/"
     description: "This is prefixed to the object name when uploading to glance."
+  visibility:
+    type: string
+    default: "public"
+    description: >
+      Visibility to apply to stored images. Possible values are
+      'public', 'private', 'community', and 'shared'.
   custom_properties:
     type: string
     default:
