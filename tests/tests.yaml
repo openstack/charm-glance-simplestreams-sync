@@ -6,23 +6,22 @@ comment:
 # functest-run-suite ...
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
-  - focal-xena
-  - impish-xena
+  - jammy-yoga
 
 dev_bundles:
-  - focal-yoga
   - jammy-yoga
+  - jammy-zed
+  - kinetic-zed
 
 tests_options:
   force_deploy:
-    - impish-xena
-    - jammy-yoga
+    - kinetic-zed
 
 # functest-run-suite --smoke ...
 # functest-deploy --bundle /path/to/smoke/bundle
 # smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
 smoke_bundles:
-  - focal-xena
+  - jammy-yoga
 
 # special target deploy status for above deploy phase
 target_deploy_status:

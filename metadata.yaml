@@ -8,7 +8,6 @@ tags:
 - misc
 - openstack
 series:
-- focal
 - jammy
 subordinate: false
 provides:
