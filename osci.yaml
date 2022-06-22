@@ -1,21 +1,11 @@
 - project:
     templates:
-      - charm-unit-jobs
-    check:
-      jobs:
-      - xenial-mitaka
-      - bionic-queens
-      - bionic-stein
-      - bionic-train
-      - bionic-ussuri
-      - focal-ussuri
-      - focal-victoria
-      - focal-wallaby
-      - focal-xena:
-          voting: false
-      # hirsuite-wallaby disabled due to:
-      # https://bugs.launchpad.net/charm-ceph-osd/+bug/1929732
-      - hirsute-wallaby:
-          voting: false
-      - impish-xena:
-          voting: false
+      - charm-unit-jobs-py36
+      - charm-queens-functional-jobs
+      - charm-rocky-functional-jobs
+      - charm-stein-functional-jobs
+      - charm-train-functional-jobs
+    vars:
+      needs_charm_build: true
+      charm_build_name: glance-simplestreams-sync
+      build_type: charmcraft
