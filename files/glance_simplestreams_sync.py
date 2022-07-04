@@ -116,7 +116,7 @@ ENDPOINT_TYPES = [
 
 def read_conf(filename):
     with open(filename) as f:
-        confobj = yaml.load(f)
+        confobj = yaml.safe_load(f)
     return confobj
 
 
