@@ -291,6 +291,7 @@ def do_sync(ksc, charm_conf):
                 sync_command += [
                     '--hypervisor-mapping'
                 ]
+
             if charm_conf.get('custom_properties'):
                 custom_properties = charm_conf.get('custom_properties').split()
                 for custom_property in custom_properties:
@@ -298,6 +299,11 @@ def do_sync(ksc, charm_conf):
                         '--custom-property',
                         custom_property
                     ]
+
+            if charm_conf.get('set_latest_property', False):
+                sync_command += [
+                    '--set-latest-property'
+                ]
 
             # --visibility is relatively new so use it only when the
             # default value is modified for backward compatibility

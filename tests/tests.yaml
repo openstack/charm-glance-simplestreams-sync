@@ -39,8 +39,10 @@ target_deploy_status:
 # functest-configure
 configure:
   - zaza.openstack.charm_tests.vault.setup.auto_initialize
+  - zaza.openstack.charm_tests.glance_simplestreams_sync.setup.set_latest_property_config
   - zaza.openstack.charm_tests.glance_simplestreams_sync.setup.sync_images
 
 # functest-test
 tests:
   - zaza.openstack.charm_tests.glance_simplestreams_sync.tests.GlanceSimpleStreamsSyncTest
+  - zaza.openstack.charm_tests.glance_simplestreams_sync.tests.GlanceSimpleStreamsSyncWithPropertiesTest

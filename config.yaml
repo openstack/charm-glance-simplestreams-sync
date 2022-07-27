@@ -62,6 +62,13 @@ options:
       Space separated list of custom properties (format key=value) to be
       set in glance for all synced images e.g. hw_firmware_type,
       hw_vif_multiqueue_enabled.
+  set_latest_property:
+    type: boolean
+    default: false
+    description: >
+      Set property `latest=true` to recently synced image and then remove
+      the `latest` property from all the os_version/architecture matching
+      images.
   content_id_template:
     type: string
     default: "auto.sync"

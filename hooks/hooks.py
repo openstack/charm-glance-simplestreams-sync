@@ -182,7 +182,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     cloud_name=config['cloud_name'],
                     user_agent=config['user_agent'],
                     custom_properties=config['custom_properties'],
-                    hypervisor_mapping=config['hypervisor_mapping'])
+                    hypervisor_mapping=config['hypervisor_mapping'],
+                    set_latest_property=config['set_latest_property'])
 
 
 def ensure_perms():
