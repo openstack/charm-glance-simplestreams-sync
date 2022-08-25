@@ -2,6 +2,7 @@ mirror_list: {{ mirror_list }}
 user_agent: {{ user_agent }}
 modify_hook_scripts: {{ modify_hook_scripts }}
 name_prefix: {{ name_prefix }}
+visibility: {{ visibility }}
 use_swift: {{ use_swift }}
 ignore_proxy_for_object_store: {{ ignore_proxy_for_object_store }}
 region: {{ region }}
