@@ -9,6 +9,7 @@ tags:
 - openstack
 series:
 - jammy
+- kinetic
 subordinate: false
 provides:
   simplestreams-image-service:
