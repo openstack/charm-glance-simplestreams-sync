@@ -30,24 +30,22 @@ applications:
 
   keystone-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   glance-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
   vault-mysql-router:
     charm: ch:mysql-router
-    channel: latest/edge
+    channel: 8.0/edge
 
   mysql-innodb-cluster:
     charm: ch:mysql-innodb-cluster
     num_units: 3
-    options:
-      source: *source
     to:
       - '0'
       - '1'
       - '2'
-    channel: latest/edge
+    channel: 8.0/edge
 
   vault:
     charm: ch:vault
@@ -63,7 +61,7 @@ applications:
       openstack-origin: *source
     to:
       - '4'
-    channel: latest/edge
+    channel: zed/edge
 
   glance:
     charm: ch:glance
@@ -72,7 +70,7 @@ applications:
       openstack-origin: *source
     to:
       - '5'
-    channel: latest/edge
+    channel: zed/edge
 
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync.charm
@@ -89,7 +87,7 @@ applications:
       source: *source
     to:
       - '7'
-    channel: latest/edge
+    channel: quincy/edge
 
   ceph-osd:
     charm: ch:ceph-osd
@@ -102,7 +100,7 @@ applications:
       - '8'
       - '9'
       - '10'
-    channel: latest/edge
+    channel: quincy/edge
 
   ceph-mon:
     charm: ch:ceph-mon
@@ -113,7 +111,7 @@ applications:
       - '11'
       - '12'
       - '13'
-    channel: latest/edge
+    channel: quincy/edge
 
 relations:
   - ['keystone:certificates', 'vault:certificates']
