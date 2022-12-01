@@ -52,7 +52,7 @@ applications:
     num_units: 1
     to:
       - '1'
-    channel: 1.7/edge
+    channel: 1.6/edge
   keystone:
     series: bionic
     charm: ch:keystone
