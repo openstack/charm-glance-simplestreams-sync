@@ -452,7 +452,7 @@ def juju_proxy_settings():
         m.groupdict()['var']: m.groupdict()['val']
         for m in re.finditer(
             '^((JUJU_CHARM_)?(?P<var>(HTTP|HTTPS|NO)_PROXY))=(?P<val>.*)$',
-            juju_run_cmd(['env']), re.MULTILINE)
+            juju_exec_cmd(['env']), re.MULTILINE)
     }
 
     proxy_settings = {}
@@ -464,14 +464,18 @@ def juju_proxy_settings():
     return proxy_settings if proxy_settings else None
 
 
-def juju_run_cmd(cmd):
+def juju_exec_cmd(cmd):
     '''Execute the passed commands under the local unit context if required'''
-    # NOTE: determine whether juju-run is actually required
+    # NOTE: determine whether juju-exec is actually required
     #       supporting execution via actions.
     if not os.environ.get('JUJU_CONTEXT_ID'):
+        if os.path.exists('/usr/bin/juju-exec'):
+            juju_exec = 'juju-exec'
+        else:
+            juju_exec = 'juju-run'
         id_conf, _ = get_conf()
         unit_name = id_conf['unit_name']
-        _cmd = ['juju-run', unit_name, ' '.join(cmd)]
+        _cmd = [juju_exec, unit_name, ' '.join(cmd)]
     else:
         _cmd = cmd
     log.info("Executing command: {}".format(_cmd))
@@ -486,7 +490,7 @@ def status_set(status, message):
         # NOTE: format of message is different for out of
         #       context execution.
         if not os.environ.get('JUJU_CONTEXT_ID'):
-            juju_run_cmd(['status-set', status,
+            juju_exec_cmd(['status-set', status,
                           '"{}"'.format(message)])
         else:
             subprocess.check_output([
@@ -501,7 +505,7 @@ def status_set(status, message):
 def update_endpoint_urls(region, publicurl, adminurl, internalurl):
     # Notify keystone via the identity service relation about
     # any endpoint changes.
-    for rid in juju_run_cmd(['relation-ids', 'identity-service']).split():
+    for rid in juju_exec_cmd(['relation-ids', 'identity-service']).split():
         log.info("Updating relation data for: {}".format(rid))
         _cmd = ['relation-set', '-r', rid]
         relation_data = {
@@ -513,7 +517,7 @@ def update_endpoint_urls(region, publicurl, adminurl, internalurl):
         }
         for k, v in relation_data.items():
             _cmd.append('{}={}'.format(k, v))
-        juju_run_cmd(_cmd)
+        juju_exec_cmd(_cmd)
 
 
 def cleanup():

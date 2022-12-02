@@ -28,9 +28,9 @@ class TestGlanceSimpleStreamsSync(unittest.TestCase):
     def setUp(self):
         self.maxDiff = 4096
 
-    @mock.patch('files.glance_simplestreams_sync.juju_run_cmd')
-    def test_proxy_settings(self, juju_run_cmd):
-        juju_run_cmd.return_value = '''
+    @mock.patch('files.glance_simplestreams_sync.juju_exec_cmd')
+    def test_proxy_settings(self, juju_exec_cmd):
+        juju_exec_cmd.return_value = '''
 LANG=C.UTF-8
 JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
 JUJU_CHARM_HTTP_PROXY=http://squid.internal:3128
@@ -46,9 +46,9 @@ JUJU_CHARM_NO_PROXY=127.0.0.1,localhost,::1
             "no_proxy": "127.0.0.1,localhost,::1",
         })
 
-    @mock.patch('files.glance_simplestreams_sync.juju_run_cmd')
-    def test_legacy_proxy_settings(self, juju_run_cmd):
-        juju_run_cmd.return_value = '''
+    @mock.patch('files.glance_simplestreams_sync.juju_exec_cmd')
+    def test_legacy_proxy_settings(self, juju_exec_cmd):
+        juju_exec_cmd.return_value = '''
 LANG=C.UTF-8
 JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
 HTTP_PROXY=http://squid.internal:3128
@@ -64,9 +64,9 @@ NO_PROXY=127.0.0.1,localhost,::1
             "no_proxy": "127.0.0.1,localhost,::1",
         })
 
-    @mock.patch('files.glance_simplestreams_sync.juju_run_cmd')
-    def test_proxy_settings_not_set(self, juju_run_cmd):
-        juju_run_cmd.return_value = '''
+    @mock.patch('files.glance_simplestreams_sync.juju_exec_cmd')
+    def test_proxy_settings_not_set(self, juju_exec_cmd):
+        juju_exec_cmd.return_value = '''
 LANG=C.UTF-8
 JUJU_CONTEXT_ID=glance-simplestreams-sync/0-run-commands-3325280900519425661
 '''
