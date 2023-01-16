@@ -1,5 +1,1 @@
-#!/bin/bash
-
-set -e
-
-/usr/share/glance-simplestreams-sync/glance-simplestreams-sync.sh
+actions.py

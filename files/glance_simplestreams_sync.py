@@ -575,7 +575,7 @@ def main():
         fcntl.flock(lockfile, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except IOError:
         log.info("{} is locked, exiting".format(SYNC_RUNNING_FLAG_FILE_NAME))
-        sys.exit(0)
+        sys.exit(2)
 
     returncode = 0
     atexit.register(cleanup)
