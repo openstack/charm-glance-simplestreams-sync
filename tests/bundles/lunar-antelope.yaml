@@ -1,7 +1,7 @@
 variables:
   source: &source distro
 
-series: jammy
+series: lunar
 
 comment:
   - 'machines section to decide order of deployment. database sooner = faster'
@@ -76,9 +76,9 @@ applications:
 
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync.charm
-    num_units: 1
     options:
       snap-channel: edge
+    num_units: 1
     to:
       - '6'
 
