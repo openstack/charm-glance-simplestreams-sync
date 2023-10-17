@@ -10,12 +10,10 @@ gate_bundles:
 
 dev_bundles:
   - jammy-bobcat
-  - lunar-antelope
   - mantic-bobcat
 
 tests_options:
   force_deploy:
-    - lunar-antelope
     - mantic-bobcat
 
 # functest-run-suite --smoke ...
