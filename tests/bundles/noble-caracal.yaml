@@ -1,7 +1,7 @@
 variables:
   source: &source distro
 
-series: lunar
+series: noble
 
 comment:
   - 'machines section to decide order of deployment. database sooner = faster'
@@ -63,7 +63,7 @@ applications:
       openstack-origin: *source
     to:
       - '4'
-    channel: latest/edge
+    channel: 2024.1/edge
 
   glance:
     charm: ch:glance
@@ -72,7 +72,7 @@ applications:
       openstack-origin: *source
     to:
       - '5'
-    channel: latest/edge
+    channel: 2024.1/edge
 
   glance-simplestreams-sync:
     charm: ../../glance-simplestreams-sync.charm
@@ -89,7 +89,7 @@ applications:
       source: *source
     to:
       - '7'
-    channel: latest/edge
+    channel: reef/edge
 
   ceph-osd:
     charm: ch:ceph-osd
@@ -102,7 +102,7 @@ applications:
       - '8'
       - '9'
       - '10'
-    channel: latest/edge
+    channel: reef/edge
 
   ceph-mon:
     charm: ch:ceph-mon
@@ -113,7 +113,7 @@ applications:
       - '11'
       - '12'
       - '13'
-    channel: latest/edge
+    channel: reef/edge
 
 relations:
   - ['keystone:certificates', 'vault:certificates']

@@ -7,24 +7,15 @@ comment:
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
   - jammy-antelope
-
-dev_bundles:
   - jammy-bobcat
-  - lunar-antelope
-  - mantic-bobcat
-
+  - jammy-caracal
+dev_bundles:
+  - noble-caracal
 tests_options:
   force_deploy:
-    - lunar-antelope
-    - mantic-bobcat
-
-# functest-run-suite --smoke ...
-# functest-deploy --bundle /path/to/smoke/bundle
-# smoke bundle should (Ubuntu LTS latest)-(OpenStack latest)
+    - noble-caracal
 smoke_bundles:
-  - jammy-antelope
-
-# special target deploy status for above deploy phase
+  - jammy-caracal
 target_deploy_status:
   vault:
     # vault will be blocked with functest-deploy, this is ok to move on
