@@ -89,7 +89,7 @@ applications:
       source: *source
     to:
       - '7'
-    channel: reef/edge
+    channel: squid/edge
 
   ceph-osd:
     charm: ch:ceph-osd
@@ -102,7 +102,7 @@ applications:
       - '8'
       - '9'
       - '10'
-    channel: reef/edge
+    channel: squid/edge
 
   ceph-mon:
     charm: ch:ceph-mon
@@ -113,7 +113,7 @@ applications:
       - '11'
       - '12'
       - '13'
-    channel: reef/edge
+    channel: squid/edge
 
 relations:
   - ['keystone:certificates', 'vault:certificates']
