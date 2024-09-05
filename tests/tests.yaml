@@ -6,16 +6,14 @@ comment:
 # functest-run-suite ...
 # functest-deploy --bundle /path/to/gate/bundle
 gate_bundles:
-  - jammy-antelope
-  - jammy-bobcat
-  - jammy-caracal
+  - noble-caracal
 dev_bundles:
   - noble-caracal
 tests_options:
   force_deploy:
     - noble-caracal
 smoke_bundles:
-  - jammy-caracal
+  - noble-caracal
 target_deploy_status:
   vault:
     # vault will be blocked with functest-deploy, this is ok to move on

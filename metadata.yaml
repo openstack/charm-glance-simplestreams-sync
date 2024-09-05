@@ -7,8 +7,6 @@ description: |
 tags:
   - misc
   - openstack
-series:
-  - jammy
 subordinate: false
 provides:
   simplestreams-image-service:
