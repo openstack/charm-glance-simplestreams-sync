@@ -61,6 +61,7 @@ from charmhelpers.core.host import (
     CompareHostReleases,
     lsb_release,
     install_ca_cert,
+    write_file,
 )
 
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
@@ -68,6 +69,9 @@ USR_SHARE_DIR = '/usr/share/glance-simplestreams-sync'
 
 MIRRORS_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
 ID_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'identity.yaml')
+
+SSTREAM_SNAP_COMMON = '/var/snap/simplestreams/common'
+CUSTOM_KEYRING_PATH = os.path.join(SSTREAM_SNAP_COMMON, 'custom_keyring.gpg')
 
 SYNC_SCRIPT_NAME = "glance_simplestreams_sync.py"
 SCRIPT_WRAPPER_NAME = "glance-simplestreams-sync.sh"
@@ -170,6 +174,11 @@ class MirrorsConfigServiceContext(OSContextGenerator):
         if len(modify_hook_scripts) == 0:
             modify_hook_scripts.append('/bin/true')
 
+        if config.get('custom_keyring'):
+            keyring_path = CUSTOM_KEYRING_PATH
+        else:
+            keyring_path = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
+
         return dict(mirror_list=config['mirror_list'],
                     modify_hook_scripts=', '.join(modify_hook_scripts),
                     name_prefix=config['name_prefix'],
@@ -182,7 +191,8 @@ class MirrorsConfigServiceContext(OSContextGenerator):
                     cloud_name=config['cloud_name'],
                     user_agent=config['user_agent'],
                     custom_properties=config['custom_properties'],
-                    hypervisor_mapping=config['hypervisor_mapping'])
+                    hypervisor_mapping=config['hypervisor_mapping'],
+                    keyring_path=keyring_path)
 
 
 def ensure_perms():
@@ -357,6 +367,13 @@ def config_changed():
         install_ca_cert(
             base64.b64decode(config.get('ssl_ca')),
         )
+
+    keyring = config.get('custom_keyring')
+    if keyring:
+        decoded = base64.b64decode(keyring)
+        write_file(CUSTOM_KEYRING_PATH, decoded)
+    elif os.path.exists(CUSTOM_KEYRING_PATH):
+        os.remove(CUSTOM_KEYRING_PATH)
 
     config.save()
 
