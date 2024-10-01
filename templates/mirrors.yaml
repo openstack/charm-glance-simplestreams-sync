@@ -12,7 +12,8 @@ hypervisor_mapping: {{ hypervisor_mapping }}
 image_import_conversion: {{ image_import_conversion }}
 {% if custom_properties %}
 custom_properties: {{ custom_properties }}
-{% endif %}
+{% endif -%}
 {% if set_latest_property %}
 set_latest_property: {{ set_latest_property }}
-{% endif %}
+{% endif -%}
+keyring_path: {{ keyring_path }}
