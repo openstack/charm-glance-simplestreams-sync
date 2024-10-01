@@ -42,6 +42,8 @@ class TestConfigChanged(CharmTestCase):
         shutil.rmtree(self.tmpcrond)
         shutil.rmtree(self.sharedir)
 
+    @mock.patch('os.remove')
+    @mock.patch.object(hooks, 'write_file')
     @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.symlink')
     @mock.patch('charmhelpers.core.hookenv.config')
@@ -51,7 +53,7 @@ class TestConfigChanged(CharmTestCase):
     @mock.patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
     def test_default_config(self, local_unit, nrpe_config, nag_host,
                             relations_of_type, config, symlink,
-                            update_nrpe_config):
+                            update_nrpe_config, write_file, os_remove):
         local_unit.return_value = 'juju/0'
         nag_host.return_value = "nagios_hostname"
         nrpe_config.return_value = self.test_config
@@ -74,6 +76,35 @@ class TestConfigChanged(CharmTestCase):
                                                     hooks.CRON_POLL_FILENAME)))
         update_nrpe_config.assert_called()
         self.install_ca_cert.assert_called_with(b'foobar')
+
+        write_file.assert_not_called()
+        os_remove.assert_not_called()
+
+    @mock.patch('os.remove')
+    @mock.patch.object(hooks, 'write_file')
+    @mock.patch.object(hooks, 'update_nrpe_config')
+    @mock.patch('os.symlink')
+    @mock.patch('charmhelpers.core.hookenv.config')
+    @mock.patch('charmhelpers.core.hookenv.relations_of_type')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.get_nagios_hostname')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.config')
+    @mock.patch('charmhelpers.contrib.charmsupport.nrpe.local_unit')
+    def test_custom_keyring(self, local_unit, nrpe_config, nag_host,
+                            relations_of_type, config, symlink,
+                            update_nrpe_config, write_file, os_remove):
+        local_unit.return_value = 'juju/0'
+        nag_host.return_value = "nagios_hostname"
+        nrpe_config.return_value = self.test_config
+
+        setattr(self.test_config, "changed", lambda x: False)
+        config.return_value = self.test_config
+        self.test_config.set('run', True)
+        self.test_config.set('ssl_ca', base64.b64encode(b'foobar'))
+
+        self.test_config.set('custom_keyring', 'dGVzdAo=')
+        hooks.config_changed()
+        write_file.assert_called_with(hooks.CUSTOM_KEYRING_PATH, b'test\n')
+        os_remove.assert_not_called()
 
     @mock.patch.object(hooks, 'update_nrpe_config')
     @mock.patch('os.path.exists')

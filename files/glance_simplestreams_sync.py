@@ -69,7 +69,7 @@ def setup_file_logging():
 
 log = logging.getLogger()
 
-KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
+DEFAULT_KEYRING = '/usr/share/keyrings/ubuntu-cloudimage-keyring.gpg'
 CONF_FILE_DIR = '/etc/glance-simplestreams-sync'
 PID_FILE_DIR = '/var/run'
 CHARM_CONF_FILE_NAME = os.path.join(CONF_FILE_DIR, 'mirrors.yaml')
@@ -271,7 +271,7 @@ def do_sync(ksc, charm_conf):
                 "--cloud-name", charm_conf['cloud_name'],
                 "--path", mirror_info['path'],
                 "--name-prefix", charm_conf['name_prefix'],
-                "--keyring", KEYRING,
+                "--keyring", charm_conf.get('keyring_path', DEFAULT_KEYRING),
                 "--log-file", SSTREAM_LOG_FILE,
             ]
 
