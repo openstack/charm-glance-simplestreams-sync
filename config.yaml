@@ -138,3 +138,15 @@ options:
       OpenStack mostly defaults to using public endpoints for internal
       communication between services. If set to True this option will
       configure services to use internal endpoints where possible.
+  custom_keyring:
+    type: string
+    default:
+    description: |
+      base64-encoded GPG keyring for verifying the simplestreams mirror
+      signature. Only required when mirroring a custom user-created repository,
+      defaults to /usr/share/keyrings/ubuntu-cloudimage-keyring.gpg which is
+      used to sign cloud-images.ubuntu.com.
+
+      Can be produced with the following command:
+      gpg --no-default-keyring --keyring gnupg-ring:custom_keyring.gpg \
+      --keyserver keyserver.ubuntu.com --recv-keys KEYID
