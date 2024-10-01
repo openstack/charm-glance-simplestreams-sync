@@ -11,7 +11,8 @@ content_id_template: {{ content_id_template }}
 hypervisor_mapping: {{ hypervisor_mapping }}
 {% if custom_properties %}
 custom_properties: {{ custom_properties }}
-{% endif %}
+{% endif -%}
 {% if set_latest_property %}
 set_latest_property: {{ set_latest_property }}
-{% endif %}
+{% endif -%}
+keyring_path: {{ keyring_path }}
