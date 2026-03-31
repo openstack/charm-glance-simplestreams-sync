@@ -5,10 +5,11 @@ description: |
   Automatically keep your glance mirror in sync with any (multiple) source(s)
   of simplestreams data.
 tags:
-  - misc
-  - openstack
+- misc
+- openstack
 series:
-  - jammy
+- jammy
+- noble
 subordinate: false
 provides:
   simplestreams-image-service:
