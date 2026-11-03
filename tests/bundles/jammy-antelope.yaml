@@ -54,7 +54,7 @@ applications:
     num_units: 1
     to:
       - '3'
-    channel: latest/edge
+    channel: 1.8/stable
 
   keystone:
     charm: ch:keystone
