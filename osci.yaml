@@ -1,6 +1,6 @@
 - project:
     templates:
-      - charm-unit-jobs-py310
+      - charm-unit-jobs-py312
       - charm-functional-jobs
     vars:
       needs_charm_build: true
